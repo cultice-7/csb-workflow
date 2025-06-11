@@ -1,0 +1,3 @@
+csb:
+  base_html: "https://www.nass.usda.gov/Research_and_Science/Crop-Sequence-Boundaries/datasets"
+  states: ["Ohio", "Indiana", "Michigan"]
