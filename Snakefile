@@ -38,3 +38,49 @@ rule join_regrow_csb:
         csb_regrow_walk = "data/crosswalks/csb_regrow_assign.parquet"
     script:
         "scripts/join_csb_regrow.py"
+
+# Karn's snake rules: need to recheck with Brian later
+rule clean_dises_table:
+    input:
+        dises_table = "../data/DISES/combined_data_clean.csv"
+    output:
+        dises_table_short = "../data/edited/DISES/combined_data_clean_short.csv"
+    script:
+        "scripts/clean_dises_table.py"
+
+rule clean_dises_shape:
+    input:
+        dises_shape = "../data/DISES/DISES_All_Parcels_05.15.25.shp",
+        dises_table_short = "../data/edited/DISES/combined_data_clean_short.csv"
+    output:
+        dises_shape_consolidated = "../data/edited/DISES/dises_consolidated.shp"
+    script:
+        "scripts/clean_dises_shape.py"
+
+rule clean_regrow_table:
+    input:
+        regrow_main_crop_table = "../data/Regrow/OH_main_crop_june24.csv"
+    output:
+        regrow_main_crop_table_wide = "../data/edited/Regrow/OH_main_crop_wide_coded.csv"
+    script:
+        "scripts/clean_regrow_table.py"
+
+rule clean_regrow_shape:
+    input:
+        regrow_boundary = "../data/Regrow/OSU_field_boudaries.geojson",
+        regrow_main_crop_table_wide = "../data/edited/Regrow/OH_main_crop_wide_coded.csv"
+    output:
+        regrow_shape_clean = "../data/edited/Regrow/regrow_clean.geojson"
+    script:
+        "scripts/clean_regrow_shape.py"
+
+rule validate_regrow_shape:
+    input: 
+        regrow_shape_clean = "../data/edited/Regrow/regrow_clean.geojson",
+        cdl_rasters = expand("../data/CDL/{year}_30m_cdls.tif", year=range(2014, 2025))
+    output:
+        validated_regrow_shape = "../data/edited/Regrow/regrow_with_cdl_validation.geojson",
+        summary_regrow_validation = "../data/edited/Regrow/regrow_validity_summary_by_year.csv"
+    script:
+        "scripts/validate_regrow_shape.py"
+

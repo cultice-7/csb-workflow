@@ -8,7 +8,7 @@ from rasterstats import zonal_stats
 gdf = gp.read_file("../data/edited/Regrow/regrow_clean.geojson")
 
 # Folder containing the CDL rasters
-raster_folder = "../data/rasters/"
+raster_folder = "../data/CDL/"
 
 # Initialize summary list
 summary_data = []
