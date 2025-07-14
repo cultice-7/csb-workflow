@@ -95,3 +95,12 @@ rule validate_regrow_shape:
         "scripts/validate_regrow_shape.py"
 
 rule join_regrow_dises:
+    input:
+        regrow_shape = "data/edited/Regrow/regrow_clean.geojson",
+        dises_shape = "data/edited/DISES/dises_consolidated.gpkg"
+    output:
+        joined_geojson = "data/edited/Regrow/regrow_dises_spatialjoin.geojson",
+        joined_table = "data/edited/Regrow/regrow_dises_spatialjoin_table.csv"
+    script:
+        "scripts/join_regrow_dises.py"
+        

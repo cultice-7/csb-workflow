@@ -13,12 +13,13 @@ dises_shape = dises_shape.to_crs(epsg=5070)
 # Preserve original geometry before buffering
 regrow_shape['original_geometry'] = regrow_shape.geometry
 
-# Apply inward buffer for spatial matching
-regrow_shape['geometry'] = regrow_shape.geometry.buffer(-50)
-regrow_shape = regrow_shape[regrow_shape.is_valid & ~regrow_shape.is_empty]
+# Create a buffered copy for spatial matching
+buffered = regrow_shape.copy()
+buffered['geometry'] = buffered.geometry.buffer(-50)
+buffered = buffered[buffered.is_valid & ~buffered.is_empty]
 
 # Perform intersection
-intersections = gp.overlay(regrow_shape, dises_shape, how='intersection')
+intersections = gp.overlay(buffered, dises_shape, how='intersection')
 
 # Calculate overlap area
 intersections['overlap_area'] = intersections.geometry.area

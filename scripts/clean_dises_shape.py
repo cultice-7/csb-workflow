@@ -32,5 +32,6 @@ csv['field_crop'] = csv['field_crop'].replace(2,5)
 # Join shape file and table using comprehensive ID
 gdf_joined = gdf_consol.merge(csv, on='comp_id', how='left')
 
-# Save shape file to GeoPackage (preserve blanks in numeric fields)
+# Save shape file to GeoPackage (preserve blanks in numeric fields) & save attribute table as csv
 gdf_joined.to_file("data/edited/DISES/dises_consolidated.gpkg", layer='dises_consolidated', driver="GPKG")
+gdf_joined.drop(columns='geometry').to_csv("data/edited/DISES/dises_consolidated_attributes.csv", index=False)
