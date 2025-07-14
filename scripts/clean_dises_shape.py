@@ -22,9 +22,12 @@ gdf_consol.reset_index(inplace=True)
 csv = pd.read_csv("data/edited/DISES/combined_data_clean_short.csv")
 
 # Add indication that this comp_id exist in data table, to be shown in joined shape file
-csv["from_data_table"] = "Y"
+csv['from_data_table'] = "Y"
 cols = ['comp_id', 'from_data_table', 'field_name', 'field_size', 'field_crop']
 csv = csv[cols]
+
+# Replace field_crop values to match CDL classification (We'll do the same with Regrow)
+csv['field_crop'] = csv['field_crop'].replace(2,5)
 
 # Join shape file and table using comprehensive ID
 gdf_joined = gdf_consol.merge(csv, on='comp_id', how='left')
