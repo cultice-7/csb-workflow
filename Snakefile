@@ -1,45 +1,49 @@
 configfile: "config.yml"
 
 # Turning config file and wildcardsinto parameters
-year7 = {wildcards.year} - 7
+# year7 = {wildcards.year} - 7
 
-rule download_csb:
-    input: 
-    output:
-        raw_csb = "data/NationalCSB_{year7}-{year}.gpkg"
-    params:
-        html = f"{config["csb"]["base_html"]}/NationalCSB_{year7}-{year}_rev23.zip"
-    script:
-        "scripts/download_csb.py"
+# rule download_csb:
+#     input: 
+#     output:
+#         raw_csb = "data/NationalCSB_{year7}-{year}.gpkg"
+#     params:
+#         html = f"{config["csb"]["base_html"]}/NationalCSB_{year7}-{year}_rev23.zip"
+#     script:
+#         "scripts/download_csb.py"
 
-rule clean_csb:
-    input:
-        raw_csb = "data/NationalCSB_{year7}_{year}.gpkg"
-    output:
-        csb = "data/SelectedCSB_{year7}_{year}.gpkg"
-    params:
-        states = config["csb"]["states"]
-    script:
-        "scripts/clean_csb.py"
+# rule clean_csb:
+#     input:
+#         raw_csb = "data/NationalCSB_{year7}_{year}.gpkg"
+#     output:
+#         csb = "data/SelectedCSB_{year7}_{year}.gpkg"
+#     params:
+#         states = config["csb"]["states"]
+#     script:
+#         "scripts/clean_csb.py"
 
-rule clean_regrow:
-    input:
-        raw_regrow = "inputs/"
-    output:
-        regrow = "data/regrow_{year}.csv"
-    params:
-        expand({})
+# rule clean_regrow:
+#     input:
+#         raw_regrow = "inputs/"
+#     output:
+#         regrow = "data/regrow_{year}.csv"
+#     params:
+#         expand({})
 
-rule join_regrow_csb:
-    input:
-        csb = "data/SelectedCSB_{year7}_{year}.gpkg"
-        regrow = "data/regrow_{year}.csv"
-    output:
-        csb_regrow_walk = "data/crosswalks/csb_regrow_assign.parquet"
-    script:
-        "scripts/join_csb_regrow.py"
+# rule join_regrow_csb:
+#     input:
+#         csb = "data/SelectedCSB_{year7}_{year}.gpkg"
+#         regrow = "data/regrow_{year}.csv"
+#     output:
+#         csb_regrow_walk = "data/crosswalks/csb_regrow_assign.parquet"
+#     script:
+#         "scripts/join_csb_regrow.py"
 
 # Karn's snake rules: need to recheck with Brian later
+rule all:
+    input:
+        "data/edited/Regrow/regrow_dises_spatialjoin_table.csv"
+
 rule clean_dises_table:
     input:
         dises_table = "data/DISES/combined_data_clean.csv"
@@ -77,9 +81,9 @@ rule clean_regrow_shape:
 rule clip_cdl_rasters:
     input:
         cdl = "data/CDL/{year}_30m_cdls.tif",
-        states = "data/Census/stat_bound/cb_2018_us_state_500k.shp"
+        states = "data/Census/state_bound/cb_2018_us_state_500k.shp"
     output:
-        clipped_cdl = "data/edited/CDL/{year}_30m_cdls_clipped.tif"
+        clipped_cdl = expand("data/edited/CDL/{year}_30m_cdls_clipped.tif", year=range(2014, 2025))
     script:
         "scripts/clip_cdl_rasters.py"
 
@@ -89,7 +93,7 @@ rule validate_regrow_shape:
         clipped_cdl_rasters = expand("data/edited/CDL/{year}_30m_cdls_clipped.tif", year=range(2014, 2025))
     output:
         validated_regrow_shape = "data/edited/Regrow/regrow_with_cdl_validation.geojson",
-        summary_regrow_validation = "data/edited/Regrow/regrow_validity_summary_by_year.csv"
+        summary_regrow_validation = "data/edited/Regrow/regrow_validity_summary_by_year.csv",
         summary_regrow_validation_cdl_1_5 = "data/edited/Regrow/regrow_validity_summary_cdl_1_5.csv"
     script:
         "scripts/validate_regrow_shape.py"
@@ -103,4 +107,3 @@ rule join_regrow_dises:
         joined_table = "data/edited/Regrow/regrow_dises_spatialjoin_table.csv"
     script:
         "scripts/join_regrow_dises.py"
-        
