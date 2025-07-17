@@ -42,8 +42,17 @@ configfile: "config.yml"
 # Karn's snake rules: need to recheck with Brian later
 rule all:
     input:
-        "data/edited/Regrow/regrow_dises_spatialjoin_table.csv"
+        "data/edited/Regrow/regrow_dises_spatialjoin_table.csv",
+        "data/edited/CSB/CSB1623_dises_spatialjoin.geojson",
+        "data/edited/CSB/CSB1724_dises_spatialjoin.geojson"
 
+rule download_3DEP:
+    input:
+    output:
+        elevation = "data/Geo/elevation/elevation.tif"
+    script:
+        "scripts/download_3DEP.py"
+        
 rule clean_dises_table:
     input:
         dises_table = "data/DISES/combined_data_clean.csv"
@@ -80,7 +89,7 @@ rule clean_regrow_shape:
 
 rule clip_cdl_rasters:
     input:
-        cdl = "data/CDL/{year}_30m_cdls.tif",
+        cdl = expand("data/CDL/{year}_30m_cdls.tif", year=range(2014,2025)),
         states = "data/Census/state_bound/cb_2018_us_state_500k.shp"
     output:
         clipped_cdl = expand("data/edited/CDL/{year}_30m_cdls_clipped.tif", year=range(2014, 2025))
@@ -103,7 +112,29 @@ rule join_regrow_dises:
         regrow_shape = "data/edited/Regrow/regrow_clean.geojson",
         dises_shape = "data/edited/DISES/dises_consolidated.gpkg"
     output:
-        joined_geojson = "data/edited/Regrow/regrow_dises_spatialjoin.geojson",
-        joined_table = "data/edited/Regrow/regrow_dises_spatialjoin_table.csv"
+        regrow_joined_geojson = "data/edited/Regrow/regrow_dises_spatialjoin.geojson",
+        regrow_joined_table = "data/edited/Regrow/regrow_dises_spatialjoin_table.csv"
     script:
         "scripts/join_regrow_dises.py"
+
+rule clip_csb_shape:
+    input:
+        csb1623 = "data/CSB/CSB1623.gdb",
+        csb1724 = "data/CSB/CSB1724.gdb"
+    output:
+        csb1623_clipped = "data/edited/CSB/CSB1623_clipped.gdb"
+        csb1724_clipped = "data/edited/CSB/CSB1724_clipped.gdb"
+    script:
+        "scripts/clip_csb_shape.py"
+
+rule join_csb_dises:
+    input:
+        csb1623_clipped = "data/edited/CSB/CSB1623_clipped.gdb"
+        csb1724_clipped = "data/edited/CSB/CSB1724_clipped.gdb"
+    output:
+        csb1623_joined_geojson = "data/edited/CSB/CSB1623_dises_spatialjoin.geojson"
+        csb1724_joined_geojson = "data/edited/CSB/CSB1724_dises_spatialjoin.geojson"
+        csb11623_joined_table = "data/edited/CSB/CSB1623_dises_spatialjoin.csv"
+        csb1724_joined_table = "data/edited/CSB/CSB1724_dises_spatialjoin.csv"
+    script:
+        "scripts/join_csb_dises.py"
