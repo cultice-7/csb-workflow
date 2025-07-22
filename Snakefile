@@ -1,16 +1,17 @@
 configfile: "config.yml"
 
-# Turning config file and wildcardsinto parameters
-# year7 = {wildcards.year} - 7
+# Turning config file and wildcards into parameters
+csb_year = config["csb"]["base_year"]
+csb_year7 = csb_year - 7
 
-# rule download_csb:
-#     input: 
-#     output:
-#         raw_csb = "data/NationalCSB_{year7}-{year}.gpkg"
-#     params:
-#         html = f"{config["csb"]["base_html"]}/NationalCSB_{year7}-{year}_rev23.zip"
-#     script:
-#         "scripts/download_csb.py"
+rule download_csb:
+    input: 
+    output:
+        raw_csb = f"data/NationalCSB_{csb_year7}-{csb_year}.gpkg"
+    params:
+        html = f"{config["csb"]["base_html"]}/NationalCSB_{csb_year7}-{csb_year}_rev23.zip"
+    script:
+        "scripts/download_csb.py"
 
 # rule clean_csb:
 #     input:
