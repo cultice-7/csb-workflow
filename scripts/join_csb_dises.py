@@ -1,12 +1,10 @@
-#untested
-
 import geopandas as gp
 import pandas as pd
 import numpy as np
 
 # Load data
-csb1623_clipped = gp.read_file("data/edited/CSB/CSB1623_clipped.gdb")
-csb1724_clipped = gp.read_file("data/edited/CSB/CSB1623_clipped.gdb")
+csb1623_clipped = gp.read_file("data/edited/CSB/CSB1623_clipped.gpkg")
+csb1724_clipped = gp.read_file("data/edited/CSB/CSB1623_clipped.gpkg")
 dises_shape = gp.read_file("data/edited/DISES/dises_consolidated.gpkg")
 
 # Reproject all to an equal-area CRS (NAD83/CONUS Albers)
@@ -61,17 +59,18 @@ result_1724 = gp.GeoDataFrame(result_1724, geometry=result_1724['original_geomet
 result_1724.drop(columns='original_geometry', inplace=True)
 
 # Add CSB-DISES assignment column
-result_1623['dises_assigned'] = result_1623['overlap_area'].notna()
-result_1724['dises_assigned'] = result_1724['overlap_area'].notna()
+result_1623['dises_assigned'] = result_1623['overlap_area'].notna().astype(str)
+result_1724['dises_assigned'] = result_1724['overlap_area'].notna().astype(str)
+result_1623['dises_assigned'] = result_1623['dises_assigned'].replace('-1', '1')
+result_1724['dises_assigned'] = result_1724['dises_assigned'].replace('-1', '1')
+
 
 # Add field match conditions (1,0, or NaN)
 result_1623['crop_match'] = np.where(
     result_1623['field_crop'].isna(),
     np.nan,
     (
-        (result_1623['field_crop'] == result_1623['crop2023_1']) |
-        (result_1623['field_crop'] == result_1623['crop2023_2']) |
-        (result_1623['field_crop'] == result_1623['crop2023_3'])
+        (result_1623['field_crop'] == result_1623['CDL2023'])
     ).astype(int)
 )
 
@@ -79,8 +78,8 @@ result_1623['area_match'] = np.where(
     result_1623['field_size'].isna(),
     np.nan,
     (
-        (result_1623['area_acre'] >= 0.8 * result_1623['field_size']) &
-        (result_1623['area_acre'] <= 1.2 * result_1623['field_size'])
+        (result_1623['CSBACRES'] >= 0.8 * result_1623['field_size']) &
+        (result_1623['CSBACRES'] <= 1.2 * result_1623['field_size'])
     ).astype(int)
 )
 
@@ -90,9 +89,7 @@ result_1724['crop_match'] = np.where(
     result_1724['field_crop'].isna(),
     np.nan,
     (
-        (result_1724['field_crop'] == result_1724['crop2023_1']) |
-        (result_1724['field_crop'] == result_1724['crop2023_2']) |
-        (result_1724['field_crop'] == result_1724['crop2023_3'])
+        (result_1724['field_crop'] == result_1724['CDL2023'])
     ).astype(int)
 )
 
@@ -100,8 +97,8 @@ result_1724['area_match'] = np.where(
     result_1724['field_size'].isna(),
     np.nan,
     (
-        (result_1724['area_acre'] >= 0.8 * result_1724['field_size']) &
-        (result_1724['area_acre'] <= 1.2 * result_1724['field_size'])
+        (result_1724['CSBACRES'] >= 0.8 * result_1724['field_size']) &
+        (result_1724['CSBACRES'] <= 1.2 * result_1724['field_size'])
     ).astype(int)
 )
 

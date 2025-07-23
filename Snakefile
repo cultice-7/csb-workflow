@@ -123,15 +123,15 @@ rule clip_csb_shape:
         csb1623 = "data/CSB/CSB1623.gdb",
         csb1724 = "data/CSB/CSB1724.gdb"
     output:
-        csb1623_clipped = "data/edited/CSB/CSB1623_clipped.gdb"
-        csb1724_clipped = "data/edited/CSB/CSB1724_clipped.gdb"
+        csb1623_clipped = "data/edited/CSB/CSB1623_clipped.gpkg"
+        csb1724_clipped = "data/edited/CSB/CSB1724_clipped.gpkg"
     script:
         "scripts/clip_csb_shape.py"
 
 rule join_csb_dises:
     input:
-        csb1623_clipped = "data/edited/CSB/CSB1623_clipped.gdb"
-        csb1724_clipped = "data/edited/CSB/CSB1724_clipped.gdb"
+        csb1623_clipped = "data/edited/CSB/CSB1623_clipped.gpkg"
+        csb1724_clipped = "data/edited/CSB/CSB1724_clipped.gpkg"
     output:
         csb1623_joined_geojson = "data/edited/CSB/CSB1623_dises_spatialjoin.geojson"
         csb1724_joined_geojson = "data/edited/CSB/CSB1724_dises_spatialjoin.geojson"

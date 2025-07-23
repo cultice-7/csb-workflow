@@ -7,7 +7,7 @@ from io import BytesIO
 
 # Base URL and output folder
 base_url = "https://www2.census.gov/geo/tiger/TIGER2023/ROADS/"
-output_folder = "census_roads_data"
+output_folder = "data/census/road"
 os.makedirs(output_folder, exist_ok=True)
 
 # State FIPS prefixes

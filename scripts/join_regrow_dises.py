@@ -40,7 +40,8 @@ result = gp.GeoDataFrame(result, geometry=result['original_geometry'], crs=regro
 result.drop(columns='original_geometry', inplace=True)
 
 # Add Regrow-DISES assignment column
-result['dises_assigned'] = result['overlap_area'].notna()
+result['dises_assigned'] = result['overlap_area'].notna().astype(str)
+result['dises_assigned'] = result['dises_assigned'].replace('-1', '1')
 
 # Add field match conditions (1, 0, or NaN)
 result['crop_match'] = np.where(

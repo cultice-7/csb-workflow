@@ -11,6 +11,8 @@ select_states = state_bound[state_bound['STATEFP'].isin(['39', '18', '26'])]
 select_states = select_states.to_crs(epsg=5070)
 
 # Define input and output folders
+os.makedirs("data/edited/CDL", exist_ok=True)
+
 cdl_folder = "data/CDL/"
 clipped_cdl_folder = "data/edited/CDL/"
 
