@@ -55,3 +55,4 @@ data/
 
 # Other ignores
 .snakemake/
+.vscode/

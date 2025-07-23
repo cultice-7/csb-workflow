@@ -4,7 +4,7 @@ import numpy as np
 
 # Load data
 csb1623_clipped = gp.read_file("data/edited/CSB/CSB1623_clipped.gpkg")
-csb1724_clipped = gp.read_file("data/edited/CSB/CSB1623_clipped.gpkg")
+csb1724_clipped = gp.read_file("data/edited/CSB/CSB1724_clipped.gpkg")
 dises_shape = gp.read_file("data/edited/DISES/dises_consolidated.gpkg")
 
 # Reproject all to an equal-area CRS (NAD83/CONUS Albers)
