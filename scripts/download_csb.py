@@ -3,6 +3,9 @@ import geopandas as gp
 import pandas as pd
 import requests
 from pathlib import Path
+import zipfile
+import shutil
+import tempfile
 
 #---# Debugging placeholders
 # year = str(2023)
@@ -12,13 +15,16 @@ from pathlib import Path
 #---# Setting up the request to the website
 def download_raw_html(
     html: str,
-    redownload: bool | None = True,
-    size_tolerance: float | None = 0.05
+    raw_dir: Path,
+    redownload: bool = True,
+    size_tolerance: float = 0.05
 ) -> None:
 
     # process the html to get out the raw filename
     raw_filename = html.split("/")[-1] # split the html and get out the last element
-    raw_path = Path() / "data" / raw_filename # stack the path using Path object
+
+    # path for downloaded file
+    raw_path = Path(raw_dir) / raw_filename # stack the path using Path object
 
     # ensure parent directory exists
     if not raw_path.parent.exists():
@@ -33,7 +39,7 @@ def download_raw_html(
 
     # send get request; set stream to true to ensure no large file issues
     response = requests.get(html, stream=True)
-    response_size = response.headers["Content-Length"]
+    response_size = int(response.headers["Content-Length"])
 
     # check if response is okay and connection remains open
     response_is_ok = response.ok
@@ -72,10 +78,52 @@ def download_raw_html(
         raw_path.unlink()
         raise RuntimeError("downloaded raw file not within set filesize tolerance; deleting raw file")
 
+#---# Zip file extraction
+def extract_zip_to_temp(zip_path: Path, output_dir: Path) -> None:
+    temp_extract_dir = Path(tempfile.mkdtemp(dir=output_dir))
+
+    # Extract all contents
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(temp_extract_dir)
+
+    # Locate the expected folder inside temp_extract
+    extracted_root = next(temp_extract_dir.iterdir())
+
+    if not extracted_root.is_dir():
+        raise FileNotFoundError("Expected extracted folder not found.")
+
+    return extracted_root
+
+#---# Move all contents from extracted_root to output_dir
+def move_extracted_contents(extracted_root: Path, output_dir: Path):
+    for item in extracted_root.iterdir():
+        target = Path(output_dir) / item.name
+        if target.exists():
+            if target.is_dir():
+                shutil.rmtree(target)
+            else:
+                target.unlink()
+        shutil.move(str(item), str(target))
+
+#---# Main execution for snakemake
 if __name__ == "__main__":
 
     # unpack snakemake
-    html = snakemake.params["html"]
+    html = snakemake.params.html
+    raw_dir = snakemake.params.raw_dir
+    output_dir = snakemake.params.output_dir
 
     # send html to download function
-    download_raw_html(html)
+    download_raw_html(html, raw_dir)
+
+    # define zip path
+    zip_path = Path(raw_dir) / html.split("/")[-1]
+
+    # extract zip to temp
+    extracted_root = extract_zip_to_temp(zip_path, output_dir)
+
+    # move contents to output directory
+    move_extracted_contents(extracted_root, output_dir)
+
+    # delete temp folder
+    shutil.rmtree(extracted_root.parent, ignore_errors=True)

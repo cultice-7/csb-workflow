@@ -1,4 +1,19 @@
-csb:
-  base_year: 2023
+# Config for downloading files only.
+
+csb: # adjust year range(s) in Snakefile.
   base_html: "https://www.nass.usda.gov/Research_and_Science/Crop-Sequence-Boundaries/datasets"
-  states: ["Ohio", "Indiana", "Michigan"]
+  raw_dir: "data/CSB"
+  output_dir: "data/CSB"
+
+elevation:
+  base_html: "https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/1/TIFF/current"
+  y_range: [39, 50] #N39 to N49
+  x_range: [81, 92] #W081 to W091
+  raw_dir: "data/Geo/elevation/tiles"
+  output_dir: "data/Geo/elevation"
+
+# census_tract: 
+#   base_html: https://www2.census.gov/geo/tiger/GENZ2023/shp"
+#   state_range: [18, 26, 39]
+#   raw_dir: "data/Census/census_tract"
+#   output_dir: "data/Census/census_tract"

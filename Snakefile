@@ -1,17 +1,41 @@
 configfile: "config.yml"
 
-# Turning config file and wildcards into parameters
-csb_year = config["csb"]["base_year"]
-csb_year7 = csb_year - 7
-
-rule download_csb:
+rule download_csb_1623:
     input: 
     output:
-        raw_csb = f"data/NationalCSB_{csb_year7}-{csb_year}.gpkg"
+        raw_csb = directory("data/CSB/CSB1623.gdb"),
+        metadata = "data/CSB/NationalCSB_2016-2023_rev23_metadata.htm"
     params:
-        html = f"{config["csb"]["base_html"]}/NationalCSB_{csb_year7}-{csb_year}_rev23.zip"
+        raw_dir = config["csb"]["raw_dir"],
+        output_dir = config["csb"]["output_dir"],
+        html = f"{config["csb"]["base_html"]}/NationalCSB_2016-2023_rev23.zip"
     script:
         "scripts/download_csb.py"
+
+rule download_csb_1724:
+    input: 
+    output:
+        raw_csb = directory("data/CSB/CSB1724.gdb"),
+        matadata = "data/CSB/NationalCSB_2017-2024_rev23_metadata.htm"
+    params:
+        raw_dir = config["csb"]["raw_dir"],
+        output_dir = config["csb"]["output_dir"],
+        html = f"{config["csb"]["base_html"]}/NationalCSB_2017-2024_rev23.zip"
+    script:
+        "scripts/download_csb.py"
+
+rule download_and_merge_3dep:
+    input:
+    output:
+        elevation = "data/Geo/elevation/elevation.tif"
+    params:
+        y_range = config["elevation"]["y_range"],
+        x_range = config["elevation"]["x_range"],
+        raw_dir = config["elevation"]["raw_dir"],
+        output_dir = config["elevation"]["output_dir"],
+        html = config["elevation"]["base_html"]
+    script:
+        "scripts/download_3dep.py"
 
 # rule clean_csb:
 #     input:
@@ -40,19 +64,12 @@ rule download_csb:
 #     script:
 #         "scripts/join_csb_regrow.py"
 
-# Karn's snake rules: need to recheck with Brian later
+# Karn's snake rules
 rule all:
     input:
         "data/edited/Regrow/regrow_dises_spatialjoin_table.csv",
         "data/edited/CSB/CSB1623_dises_spatialjoin.geojson",
         "data/edited/CSB/CSB1724_dises_spatialjoin.geojson"
-
-rule download_3DEP:
-    input:
-    output:
-        elevation = "data/Geo/elevation/elevation.tif"
-    script:
-        "scripts/download_3DEP.py"
         
 rule clean_dises_table:
     input:
@@ -123,19 +140,19 @@ rule clip_csb_shape:
         csb1623 = "data/CSB/CSB1623.gdb",
         csb1724 = "data/CSB/CSB1724.gdb"
     output:
-        csb1623_clipped = "data/edited/CSB/CSB1623_clipped.gpkg"
+        csb1623_clipped = "data/edited/CSB/CSB1623_clipped.gpkg",
         csb1724_clipped = "data/edited/CSB/CSB1724_clipped.gpkg"
     script:
         "scripts/clip_csb_shape.py"
 
 rule join_csb_dises:
     input:
-        csb1623_clipped = "data/edited/CSB/CSB1623_clipped.gpkg"
+        csb1623_clipped = "data/edited/CSB/CSB1623_clipped.gpkg",
         csb1724_clipped = "data/edited/CSB/CSB1724_clipped.gpkg"
     output:
-        csb1623_joined_geojson = "data/edited/CSB/CSB1623_dises_spatialjoin.geojson"
-        csb1724_joined_geojson = "data/edited/CSB/CSB1724_dises_spatialjoin.geojson"
-        csb11623_joined_table = "data/edited/CSB/CSB1623_dises_spatialjoin.csv"
+        csb1623_joined_geojson = "data/edited/CSB/CSB1623_dises_spatialjoin.geojson",
+        csb1724_joined_geojson = "data/edited/CSB/CSB1724_dises_spatialjoin.geojson",
+        csb11623_joined_table = "data/edited/CSB/CSB1623_dises_spatialjoin.csv",
         csb1724_joined_table = "data/edited/CSB/CSB1724_dises_spatialjoin.csv"
     script:
         "scripts/join_csb_dises.py"
