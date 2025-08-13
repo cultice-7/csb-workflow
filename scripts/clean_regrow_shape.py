@@ -1,7 +1,7 @@
 import geopandas as gp
 import pandas as pd
 
-gdf = gp.read_file("data/Regrow/OSU_field_boudaries.geojson")
+gdf = gp.read_file("data/Regrow/OSU_field_boundaries_june24.geojson")
 
 # Reproject to NAD83/Conus Albers
 gdf_reproj = gdf.to_crs(epsg=5070)

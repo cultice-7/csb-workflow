@@ -1,19 +1,24 @@
 # Config for downloading files only.
 
-csb: # adjust year range(s) in Snakefile.
+csb: # adjust year in Snakefile.
   base_html: "https://www.nass.usda.gov/Research_and_Science/Crop-Sequence-Boundaries/datasets"
   raw_dir: "data/CSB"
   output_dir: "data/CSB"
 
 elevation:
   base_html: "https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/1/TIFF/current"
-  y_range: [39, 50] #N39 to N49
+  y_range: [38, 50] #N38 to N49
   x_range: [81, 92] #W081 to W091
   raw_dir: "data/Geo/elevation/tiles"
   output_dir: "data/Geo/elevation"
 
-# census_tract: 
-#   base_html: https://www2.census.gov/geo/tiger/GENZ2023/shp"
-#   state_range: [18, 26, 39]
-#   raw_dir: "data/Census/census_tract"
-#   output_dir: "data/Census/census_tract"
+census_tract: # define census tract file in Snakefile
+  base_html: "https://www2.census.gov/geo/tiger/GENZ2023/shp"
+  raw_dir: "data/Census/census_tract"
+  output_dir: "data/Census/census_tract"
+
+roads: 
+  base_html: "https://www2.census.gov/geo/tiger/TIGER2023/PRISECROADS"
+  prefixes: ["18", "26", "39"] # state
+  raw_dir: "data/Census/road/raw"
+  output_dir: "data/Census/road"

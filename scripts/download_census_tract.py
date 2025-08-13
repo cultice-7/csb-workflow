@@ -1,7 +1,5 @@
 # Import packages
-import geopandas as gp
-import pandas as pd
-import requests 
+import requests
 from pathlib import Path
 import zipfile
 import urllib3
@@ -9,14 +7,13 @@ import urllib3
 # Suppress insecure request warning (due to disabling SSL verification, Census.gov only!)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-
 #---# Setting up the request to the website
 def download_raw_html(
     html: str,
     raw_dir: Path,
     redownload: bool = True,
     size_tolerance: float = 0.05
-) -> Path:
+) -> None:
 
     # process the html to get out the raw filename
     raw_filename = html.split("/")[-1] # split the html and get out the last element
@@ -37,7 +34,7 @@ def download_raw_html(
 
     # send get request; set stream to true to ensure no large file issues
     response = requests.get(html, stream=True, verify=False) #Disable SSL verification (Do this for census.gov only!)
-    response_size = int(response.headers.get("Content-Length", 0))
+    response_size = int(response.headers["Content-Length"])
 
     # check if response is okay and connection remains open
     response_is_ok = response.ok
@@ -71,27 +68,17 @@ def download_raw_html(
         )
 
     # last check: make sure file size in response is close enough to filesize on disk
-    if response_size > 0:
-        raw_size = raw_path.stat().st_size
-        if abs(raw_size - response_size)/response_size > size_tolerance:
-            raw_path.unlink()
-            raise RuntimeError("downloaded raw file not within set filesize tolerance; deleting raw file")
-    return raw_path
+    raw_size = raw_path.stat().st_size
+    if (raw_size - response_size)/response_size > size_tolerance:
+        raw_path.unlink()
+        raise RuntimeError("downloaded raw file not within set filesize tolerance; deleting raw file")
 
 #---# Zip file extraction
-def extract_zip_to_raw(zip_path: Path, raw_dir: Path) -> None:
-    # Extract all contents directly into raw_dir
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(raw_dir)
+def extract_zip(zip_path: Path, output_dir: Path) -> None:
 
-#---# Merge function
-def merge_vectors(shp_files: list[Path], output_path: Path) -> None:
-    # Read all shapefiles and concatenate them
-    gdfs = [gp.read_file(shp) for shp in shp_files]
-    merged = pd.concat(gdfs, ignore_index=True)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    merged.to_file(output_path)
-    print(f"Merged vector saved to {output_path}")
+    # Extract all contents
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(output_dir)
 
 
 #---# Main execution for snakemake
@@ -99,32 +86,14 @@ if __name__ == "__main__":
 
     # unpack snakemake
     html = snakemake.params.html
-    raw_dir = Path(snakemake.params.raw_dir)
-    output_dir = Path(snakemake.params.output_dir)
-    prefixes = [int(p) for p in snakemake.params.prefixes]
+    raw_dir = snakemake.params.raw_dir
+    output_dir = snakemake.params.output_dir
 
-    # download files
-    downloaded_files = []
+    # send html to download function
+    download_raw_html(html, raw_dir)
 
-    for prefix in prefixes:
-        prefix_st = str(prefix).zfill(2)
-        url = f"{html}/tl_2023_{prefix_st}_prisecroads.zip"
-        try:
-            zip_path = download_raw_html(url, raw_dir)
-            downloaded_files.append(zip_path)
-        except Exception as e:
-            print(f"Skipping {url}: {e}")
+    # define zip path
+    zip_path = Path(raw_dir) / html.split("/")[-1]
 
     # extract zip
-    for zip_path in downloaded_files:
-        extract_zip_to_raw(zip_path, raw_dir) 
-
-    # collect all shapefiles from raw_dir
-    shp_files = list(raw_dir.glob("*.shp"))
-
-    # define output path for merged shapefile
-    merged_output_path = Path(snakemake.output.roads)
-
-    # merge file and save the merged file in output_dir
-    merge_vectors(shp_files, merged_output_path)
-
+    extract_zip(zip_path, output_dir)
