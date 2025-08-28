@@ -1,4 +1,5 @@
 import pandas as pd
+import os
 
 df = pd.read_csv("data/Regrow/OH_main_crop_june24.csv")
 
@@ -44,5 +45,6 @@ crop_map = {
 df_wide.replace(crop_map, inplace=True)
 
 # Save to csv
+os.makedirs("data/edited/Regrow", exist_ok=True)
 df_wide.to_csv("data/edited/Regrow/OH_main_crop_wide_coded.csv", index=False)
 

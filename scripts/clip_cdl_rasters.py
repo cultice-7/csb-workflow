@@ -4,7 +4,7 @@ import rasterio
 from rasterio.mask import mask
 
 # Filter state boundary file to 3 states (OH, MI, IN)
-state_bound = gp.read_file("data/Census/state_bound/cb_2018_us_state_500k.shp")
+state_bound = gp.read_file("data/Census/state_bound/cb_2023_us_state_500k.shp")
 select_states = state_bound[state_bound['STATEFP'].isin(['39', '18', '26'])]
 
 # Reproject CRS to match CDL rasters

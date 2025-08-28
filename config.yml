@@ -5,6 +5,12 @@ csb: # adjust year in Snakefile.
   raw_dir: "data/CSB"
   output_dir: "data/CSB"
 
+cdl:
+  base_html: "https://www.nass.usda.gov/Research_and_Science/Cropland/Release/datasets"
+  year: [2014, 2025] #2014-2024
+  raw_dir: "data/CDL"
+  output_dir: "data/CDL"
+
 elevation:
   base_html: "https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/1/TIFF/current"
   y_range: [38, 50] #N38 to N49
@@ -17,8 +23,19 @@ census_tract: # define census tract file in Snakefile
   raw_dir: "data/Census/census_tract"
   output_dir: "data/Census/census_tract"
 
+state_bound: # define state boundary file in Snakefile
+  base_html: "https://www2.census.gov/geo/tiger/GENZ2023/shp"
+  raw_dir: "data/Census/state_bound"
+  output_dir: "data/Census/state_bound"
+
 roads: 
   base_html: "https://www2.census.gov/geo/tiger/TIGER2023/PRISECROADS"
-  prefixes: ["18", "26", "39"] # state
+  prefixes: ["18", "26", "39", "17", "21", "42", "54", "55"] # main states & surrounding states
   raw_dir: "data/Census/road/raw"
   output_dir: "data/Census/road"
+
+watershed:
+  base_html: "https://prd-tnm.s3.amazonaws.com/StagedProducts/Hydrography/NHD/State/Shape"
+  states: ["Ohio", "Indiana", "Michigan"]
+  raw_dir: "data/Geo/watershed/raw"
+  output_dir: "data/Geo/watershed"
