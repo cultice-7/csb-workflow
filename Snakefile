@@ -1,5 +1,6 @@
 configfile: "config.yml"
 
+
 ########### For running all rules
 rule all:
     input:
