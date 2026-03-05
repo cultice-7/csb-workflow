@@ -30,7 +30,8 @@ def reproject_raster(input_path, output_path, dst_crs="EPSG:5070", resampling_me
                     reproject(
                         source=rasterio.band(src, i),
                         destination=rasterio.band(dst, i),
-                                               src_crs=src.crs,
+                        src_transform=src.transform,
+                        src_crs=src.crs,
                         dst_transform=transform,
                         dst_crs=dst_crs,
                         resampling=resampling_method

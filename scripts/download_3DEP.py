@@ -2,7 +2,9 @@
 import requests
 from pathlib import Path
 import rasterio
-from rasterio.merge import merge
+from shapely.geometry import box
+import geopandas as gpd
+import math
 
 #---# Download function
 def download_raw_html(
@@ -70,23 +72,53 @@ def download_raw_html(
     return raw_path
 
 #---# Merge function
-def merge_rasters(tif_files: list[Path], output_path: Path) -> None:
-    src_files = [rasterio.open(str(fp)) for fp in tif_files]
-    mosaic, out_trans = merge(src_files)
+def merge_rasters_streaming(tif_files: list[Path], output_path: Path) -> None:
+    # Read metadata from first file
+    with rasterio.open(tif_files[0]) as src0:
+        meta = src0.meta.copy()
+        res_x = src0.transform.a
+        res_y = -src0.transform.e
 
-    out_meta = src_files[0].meta.copy()
-    out_meta.update({
+    # Compute mosaic bounding box (union of all tiles)
+    minx = min(rasterio.open(f).bounds.left   for f in tif_files)
+    miny = min(rasterio.open(f).bounds.bottom for f in tif_files)
+    maxx = max(rasterio.open(f).bounds.right  for f in tif_files)
+    maxy = max(rasterio.open(f).bounds.top    for f in tif_files)
+    
+    # Compute new mosaic transform and dimensions
+    width  = math.ceil((maxx - minx) / res_x)
+    height = math.ceil((maxy - miny) / res_y)
+    transform = rasterio.Affine(res_x, 0, minx, 0, -res_y, maxy)
+    
+    meta.update({
         "driver": "GTiff",
-        "height": mosaic.shape[1],
-        "width": mosaic.shape[2],
-        "transform": out_trans,
-        "count": mosaic.shape[0]
+        "height": height,
+        "width": width,
+        "transform": transform,
+        "count": 1
     })
 
-    with rasterio.open(output_path, "w", **out_meta) as dest:
-        dest.write(mosaic)
+    # Create destination raster
+    with rasterio.open(output_path, "w", **meta) as dst:
+        # For each tile: read block-by-block and write into the mosaic
+        for fp in tif_files:
+            with rasterio.open(fp) as src:
+                left, bottom, right, top = src.bounds
+                # Compute placement of src tile in mosaic coordinates
+                window = rasterio.windows.from_bounds(
+                    left, bottom, right, top, transform=dst.transform
+                )
+
+                data = src.read(1)
+                dst.write(data, 1, window=window)    
 
     print(f"Merged raster saved to {output_path}")
+
+#---# Intersection between state-boundary polygon and DEM tile polygon
+def tile_intersects_states(lat, lon, state_bound):
+    tile = box(lon-1, lat-1, lon+1, lat+1)
+    return state_bound.intersects(tile).any()    
+
 
 #---# Main execution for snakemake
 if __name__ == "__main__":
@@ -95,19 +127,24 @@ if __name__ == "__main__":
     raw_dir = snakemake.params.raw_dir
     output_dir = snakemake.params.output_dir
     html = snakemake.params.html
+    states = snakemake.params.states
+    
+    df_state_bound = gpd.read_file("data/Census/state_bound/cb_2023_us_state_500k.shp")
+    df_state_bound = df_state_bound[df_state_bound["STUSPS"].isin(states)]
 
     downloaded_files = []
     for y in y_range:
         for x in x_range:
-            y_str = str(y).zfill(2)
-            x_str = str(x).zfill(3)
-            url = f"{html}/n{y_str}w{x_str}/USGS_1_n{y_str}w{x_str}.tif"
-            try:
-                tif_path = download_raw_html(url, raw_dir)
-                downloaded_files.append(tif_path)
-            except Exception as e:
-                print(f"Skipping {url}: {e}")
+            if tile_intersects_states(y, -x, df_state_bound):
+                y_str = str(y).zfill(2)
+                x_str = str(x).zfill(3)
+                url = f"{html}/n{y_str}w{x_str}/USGS_1_n{y_str}w{x_str}.tif"
+                try:
+                    tif_path = download_raw_html(url, raw_dir)
+                    downloaded_files.append(tif_path)
+                except Exception as e:
+                    print(f"Skipping {url}: {e}")
 
     if downloaded_files:
         merged_path = Path(output_dir) / "elevation.tif"
-        merge_rasters(downloaded_files, merged_path)
+        merge_rasters_streaming(downloaded_files, merged_path)

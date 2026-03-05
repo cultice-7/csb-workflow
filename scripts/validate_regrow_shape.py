@@ -32,33 +32,47 @@ def summarize(gdf, year, filter_cdl=None):
 
 # Define main processing loop
 def main():
-    gdf = gp.read_file("data/edited/Regrow/regrow_clean.geojson")
-    raster_folder = "data/edited/CDL/"
-    summary_all, summary_cdl_1_5 = [], []
+    
+    input_folder = "data/edited/Regrow/"
+    output_folder = "data/edited/Regrow/validation/"
+    os.makedirs("data/edited/Regrow/validation", exist_ok = True)
+    
+    states = ["OH", "MN", "WI", "IA", "IN", "IL"]
+    
+    for state in states:
+    
+        input_path = os.path.join(input_folder, f"{state}_regrow_shape_table.geojson")
+        output_path = os.path.join(output_folder, f"{state}_regrow_with_cdl_validation.geojson")
+        output_path_csv_1 = os.path.join(output_folder, f"{state}_regrow_validity_summary_by_year.csv")
+        output_path_csv_2 = os.path.join(output_folder, f"{state}_regrow_validity_summary_by_year_cdl_1_5.csv")
+        
+        gdf = gp.read_file(input_path)
+        raster_folder = "data/edited/CDL/"
+        summary_all, summary_cdl_1_5 = [], []
 
-    for year in range(2014, 2025):
-        raster_path = os.path.join(raster_folder, f"{year}_30m_cdls_clipped.tif")
-        if not os.path.exists(raster_path):
-            print(f"Raster not found for year {year}")
-            continue
+        for year in range(2014, 2025):
+            raster_path = os.path.join(raster_folder, f"{year}_30m_cdls_clipped.tif")
+            if not os.path.exists(raster_path):
+                print(f"Raster not found for year {year}")
+                continue
 
-        print(f"Processing year {year} with {len(gdf)} polygons...")
-        crop_cols = [f"crop{year}_{i}" for i in range(1, 4) if f"crop{year}_{i}" in gdf.columns]
-        args_list = [(mapping(row.geometry), [row[c] for c in crop_cols if pd.notnull(row[c])], raster_path)
-                     for _, row in gdf.iterrows()]
+            print(f"Processing year {year} with {len(gdf)} polygons...")
+            crop_cols = [f"crop{str(year)[2:]}_{i}" for i in range(1, 4) if f"crop{str(year)[2:]}_{i}" in gdf.columns]
+            args_list = [(mapping(row.geometry), [row[c] for c in crop_cols if pd.notnull(row[c])], raster_path)
+                        for _, row in gdf.iterrows()]
 
-        with ProcessPoolExecutor() as executor:
-            results = list(executor.map(process_polygon, args_list))
+            with ProcessPoolExecutor() as executor:
+                results = list(executor.map(process_polygon, args_list))
 
-        gdf[f"cdl_{year}"], gdf[f"valid_{year}"] = zip(*results)
-        summary_all.append(summarize(gdf, year))
-        summary_cdl_1_5.append(summarize(gdf, year, filter_cdl=[1, 5]))
+            gdf[f"cdl_{year}"], gdf[f"valid_{year}"] = zip(*results)
+            summary_all.append(summarize(gdf, year))
+            summary_cdl_1_5.append(summarize(gdf, year, filter_cdl=[1, 5]))
 
-    # Save Regrow polygons with validation and summary tables for validation
-    gdf.to_file("data/edited/Regrow/regrow_with_cdl_validation.geojson", driver="GeoJSON")
-    pd.DataFrame(summary_all).to_csv("data/edited/Regrow/regrow_validity_summary_by_year.csv", index=False)
-    pd.DataFrame(summary_cdl_1_5).to_csv("data/edited/Regrow/regrow_validity_summary_cdl_1_5.csv", index=False)
-    print("Saved GeoJSON and both summary tables.")
+        # Save Regrow polygons with validation and summary tables for validation
+        gdf.to_file(output_path, driver="GeoJSON")
+        pd.DataFrame(summary_all).to_csv(output_path_csv_1, index = False)
+        pd.DataFrame(summary_cdl_1_5).to_csv(output_path_csv_2, index = False)
+        print("Saved GeoJSON and both summary tables for {state}")
 
 if __name__ == "__main__":
     main()
