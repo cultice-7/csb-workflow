@@ -56,3 +56,4 @@ data/
 # Other ignores
 .snakemake/
 .vscode/
+Thumbs.db
