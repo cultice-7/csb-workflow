@@ -7,6 +7,7 @@ import geopandas as gpd
 import math
 
 #---# Download function
+#---# Function to download raw html; includes error catching and file size checking; also includes parameters for redownloading and size tolerance
 def download_raw_html(
     html: str,
     raw_dir: Path,
