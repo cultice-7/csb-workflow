@@ -13,8 +13,9 @@ cdl:
 
 elevation:
   base_html: "https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/1/TIFF/current"
-  y_range: [38, 50] #N38 to N49
-  x_range: [81, 92] #W081 to W091
+  y_range: [35, 51] #N36 to N50
+  x_range: [81, 100] #W081 to W099
+  states: ['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI'] 
   raw_dir: "data/Geo/elevation/tiles"
   output_dir: "data/Geo/elevation"
 
@@ -28,14 +29,34 @@ state_bound: # define state boundary file in Snakefile
   raw_dir: "data/Census/state_bound"
   output_dir: "data/Census/state_bound"
 
+county_bound: # define county boundary file in Snakefile
+  base_html: "https://www2.census.gov/geo/tiger/GENZ2023/shp"
+  raw_dir: "data/Census/county_bound"
+  output_dir: "data/Census/county_bound"
+
 roads: 
   base_html: "https://www2.census.gov/geo/tiger/TIGER2023/PRISECROADS"
-  prefixes: ["18", "26", "39", "17", "21", "42", "54", "55"] # main states & surrounding states
+  prefixes: ['17', '18', '19', '26', '27', '39', '55', '21', '29', '31', '38', '42', '46', '54'] # main and surrounding states
   raw_dir: "data/Census/road/raw"
   output_dir: "data/Census/road"
 
 watershed:
   base_html: "https://prd-tnm.s3.amazonaws.com/StagedProducts/Hydrography/NHD/State/Shape"
-  states: ["Ohio", "Indiana", "Michigan"]
+  states: ["Ohio", "Indiana", "Michigan", "Illinois", "Iowa", "Minnesota", "Wisconsin"]
   raw_dir: "data/Geo/watershed/raw"
   output_dir: "data/Geo/watershed"
+
+weather:
+  base_html: "https://data.prism.oregonstate.edu/time_series/us/an/800m"
+  weather_variables: ["ppt", "tdmean", "tmax", "tmin", "tmean", "vpdmax", "vpdmin"]
+  states: ['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']
+  year: [2014, 2025] #2014-2024
+  raw_dir: "data/Weather/raw"
+  output_dir: "data/Weather"
+
+price:
+  N_nearest: 5
+  states: ['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']
+  crops: ['corn', 'soybeans', 'wheat']
+  raw_dir: "data/Grain Price"
+  output_dir: "data/Grain Price"

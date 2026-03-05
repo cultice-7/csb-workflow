@@ -1,97 +1,126 @@
-import geopandas as gp
+import geopandas as gpd
 import pandas as pd
 import numpy as np
+import os
+from shapely import intersection
 
-# Load data
-regrow_shape = gp.read_file("data/edited/Regrow/regrow_clean.geojson")
-dises_shape = gp.read_file("data/edited/DISES/dises_consolidated.gpkg")
+# Input and output folders for Regrow
+input_folder_Regrow = "data/edited/Regrow/"
+output_folder_Regrow = "data/edited/Regrow/"
 
-# Reproject both to an equal-area CRS (NAD83/CONUS Albers)
-regrow_shape = regrow_shape.to_crs(epsg=5070)
-dises_shape = dises_shape.to_crs(epsg=5070)
+# Load DISES data
+dises_shape = gpd.read_file("data/edited/DISES/dises_consolidated.gpkg")
 
-# Preserve original geometry before buffering
-regrow_shape['original_geometry'] = regrow_shape.geometry
+# Rename all DISES columns for clarity
+dises_shape = dises_shape.add_suffix('_dises')
 
-# Create a buffered copy for spatial matching
-buffered = regrow_shape.copy()
-buffered['geometry'] = buffered.geometry.buffer(-50)
-buffered = buffered[buffered.is_valid & ~buffered.is_empty]
+states = snakemake.params.states
 
-# Perform intersection
-intersections = gp.overlay(buffered, dises_shape, how='intersection')
+for state in states:
+    
+    input_path_regrow = os.path.join(input_folder_Regrow, f"{state}_regrow_shape_table.parquet")
+    output_path_geospatial = os.path.join(output_folder_Regrow, f"{state}_regrow_dises_spatial.parquet")
+    output_path_table = os.path.join(output_folder_Regrow, f"{state}_regrow_dises_table.parquet")
+    
+    # Load Regrow data
+    regrow_shape = gpd.read_parquet(input_path_regrow)
 
-# Calculate overlap area
-intersections['overlap_area'] = intersections.geometry.area
+    # Setting active geometry column
+    regrow_shape = regrow_shape.set_geometry('geometry')
+    dises_shape = dises_shape.set_geometry('geometry_dises')
 
-# Keep only the largest overlap per Regrow polygon
-largest_overlap = intersections.sort_values('overlap_area', ascending=False).drop_duplicates('boundary_id')
+    # Reproject both to an equal-area CRS (NAD83/CONUS Albers)
+    regrow_shape = regrow_shape.to_crs(epsg=5070)
+    dises_shape = dises_shape.to_crs(epsg=5070)
 
-# Merge attributes back to original Regrow data
-columns_to_merge = largest_overlap.columns.difference(['geometry'])
-result = regrow_shape.merge(largest_overlap[columns_to_merge], on='boundary_id', how='left', suffixes=('', '_temp'))
+    # Preserve original geometry before buffering
+    regrow_shape['original_geometry'] = regrow_shape.geometry
+    dises_shape['original_geometry_dises'] = dises_shape.geometry
 
-# Drop temporary columns
-cols_to_drop = [col for col in result.columns if col.endswith('_temp')]
-result.drop(columns=cols_to_drop, inplace=True)
+    # Create a buffered copy for spatial matching
+    buffered = regrow_shape.copy()
+    buffered['geometry'] = buffered.geometry.buffer(-10)
+    buffered = buffered[buffered.is_valid & ~buffered.is_empty]
 
-# Restore original geometry
-result = gp.GeoDataFrame(result, geometry=result['original_geometry'], crs=regrow_shape.crs)
-result.drop(columns='original_geometry', inplace=True)
+    # Perform intersection
+    intersections = gpd.overlay(buffered, dises_shape, how='intersection')
 
-# Add Regrow-DISES assignment column
-result['dises_assigned'] = result['overlap_area'].notna().astype(str)
-result['dises_assigned'] = result['dises_assigned'].replace('-1', '1')
+    # Calculate overlap area (in acres)
+    intersections['overlap_area_dises'] = intersections.geometry.area / 4046.8564224
+    
+    # Keep only the largest overlap per Regrow polygon
+    largest_overlap = intersections.sort_values('overlap_area_dises', ascending=False).drop_duplicates('field_id')
 
-# Add field match conditions (1, 0, or NaN)
-result['crop_match'] = np.where(
-    result['field_crop'].isna(),
-    np.nan,
-    (
-        (result['field_crop'] == result['crop2023_1']) |
-        (result['field_crop'] == result['crop2023_2']) |
-        (result['field_crop'] == result['crop2023_3'])
-    ).astype(int)
-)
+    # Merge attributes back to original Regrow data
+    columns_to_merge = largest_overlap.columns.difference(['geometry'])
+    regrow_dises = regrow_shape.merge(largest_overlap[columns_to_merge], on='field_id', how='left', suffixes=('', '_temp'))
 
-result['area_match'] = np.where(
-    result['field_size'].isna(),
-    np.nan,
-    (
-        (result['area_acre'] >= 0.8 * result['field_size']) &
-        (result['area_acre'] <= 1.2 * result['field_size'])
-    ).astype(int)
-)
+    # Drop temporary columns
+    cols_to_drop = [col for col in regrow_dises.columns if col.endswith('_temp')]
+    regrow_dises.drop(columns=cols_to_drop, inplace=True)
 
-# Define match_quality based on crop_match and area_match
-def determine_match_quality(row):
-    if pd.isna(row['crop_match']) and pd.isna(row['area_match']):
-        return np.nan
-    elif row['crop_match'] == 1 and row['area_match'] == 1:
-        return 'A'
-    elif row['crop_match'] == 1:
-        return 'B_crop'
-    elif row['area_match'] == 1:
-        return 'B_area'
-    else:
-        return 'F'
+    # Add Regrow-DISES assignment column
+    regrow_dises['field_assigned_dises'] = regrow_dises['overlap_area_dises'].notna().astype(str)
+    regrow_dises['field_assigned_dises'] = regrow_dises['field_assigned_dises'].replace({'True': 'Y', 'False': 'N'})
+    
+    # Calculate overlap area between Regrow and assigned DISES fields (in acres) and its share as % of Regrow field area
+    mask_overplap = regrow_dises['field_assigned_dises'] == 'Y'
+    regrow_dises.loc[mask_overplap, 'overlap_area_dises'] = (
+        intersection(regrow_dises.loc[mask_overplap, 'original_geometry'], regrow_dises.loc[mask_overplap, 'original_geometry_dises']).area) / 4046.8564224
+    regrow_dises.loc[mask_overplap, 'overlap_area_share_dises'] = (
+        intersection(regrow_dises.loc[mask_overplap, 'original_geometry'], regrow_dises.loc[mask_overplap, 'original_geometry_dises']).area
+        ) / regrow_dises.loc[mask_overplap, 'original_geometry'].area
+    
+    # Restore original geometry
+    regrow_dises.drop(columns='original_geometry_dises', inplace=True)
+    regrow_dises = gpd.GeoDataFrame(regrow_dises, geometry=regrow_dises['original_geometry'], crs=regrow_shape.crs)
+    regrow_dises.drop(columns='original_geometry', inplace=True)
 
-result['match_quality'] = result.apply(determine_match_quality, axis=1)
+    # Add field match conditions (1, 0, or NaN)
+    regrow_dises['crop_match_dises'] = np.where(
+        regrow_dises['field_crop_23_dises'].isna(),
+        np.nan,
+        (
+            (regrow_dises['field_crop_23_dises'] == regrow_dises['crop_23_1']) |
+            (regrow_dises['field_crop_23_dises'] == regrow_dises['crop_23_2'])
+        ).astype(int)
+    )
 
-# Rename DISES columns for clarity
-result.rename(columns={
-    'field_crop': 'field_crop_dises',
-    'field_name': 'field_name_dises',
-    'field_size': 'field_size_dises',
-    'from_data_table': 'from_data_table_dises'
-}, inplace=True)
+    regrow_dises['area_match_dises'] = np.where(
+        regrow_dises['field_size_dises'].isna(),
+        np.nan,
+        (
+            (regrow_dises['area_acre'] >= 0.75 * regrow_dises['field_size_dises']) &
+            (regrow_dises['area_acre'] <= 1.25 * regrow_dises['field_size_dises'])
+        ).astype(int)
+    )
 
-# Preview result
-print(result.head())
+    # Define match_quality based on crop_match_dises and area_match_dises
+    def determine_match_quality(row):
+        if pd.isna(row['crop_match_dises']) and pd.isna(row['area_match_dises']):
+            return np.nan
+        elif row['crop_match_dises'] == 1 and row['area_match_dises'] == 1:
+            return 'A'
+        elif row['crop_match_dises'] == 1:
+            return 'B_crop'
+        elif row['area_match_dises'] == 1:
+            return 'B_area'
+        else:
+            return 'F'
 
-# Save spatial joined Regrow shape
-result.to_file("data/edited/Regrow/regrow_dises_spatialjoin.geojson", driver="GeoJSON")
+    regrow_dises['match_quality_dises'] = regrow_dises.apply(determine_match_quality, axis=1)
+    
+    # Keep only the necessary columns
+    cols_to_keep = [c for c in regrow_dises.columns if c.endswith("_dises") or c in ["field_id", "geometry"]]
+    regrow_dises = regrow_dises[cols_to_keep]
+    
+    # Preview result
+    print(regrow_dises.head())
 
-# Save attribute table as CSV
-attribute_table = result.drop(columns='geometry')
-attribute_table.to_csv("data/edited/Regrow/regrow_dises_spatialjoin_table.csv", index=False)
+    # Save spatial joined Regrow_dises shape file
+    #regrow_dises.to_parquet(output_path_geospatial, compression="zstd")
+
+    # Save attribute table as CSV
+    attribute_table = regrow_dises.drop(columns='geometry')
+    attribute_table.to_parquet(output_path_table, compression="zstd")
+    print(f"Regrow and DISES for {state} are merged and saved")

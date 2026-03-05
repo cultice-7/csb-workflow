@@ -4,6 +4,7 @@ import pandas as pd
 import requests 
 from pathlib import Path
 import zipfile
+import shutil
 
 
 #---# Setting up the request to the website
@@ -22,7 +23,7 @@ def download_raw_html(
 
     # ensure parent directory exists
     if not raw_path.parent.exists():
-        raw_path.parent.mkdir()
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
 
     # if file already exists, print a message and delete based on redownload parameter
     if raw_path.exists():
@@ -37,7 +38,6 @@ def download_raw_html(
 
     # check if response is okay
     if response.ok and response.status_code == 200:
-
 
         # in error catching block...
         try:
@@ -72,7 +72,7 @@ def download_raw_html(
 #---# Zip file extraction
 def extract_zip_to_raw(zip_path: Path, raw_dir: Path) -> None:
     # Create a subdirectory named after the ZIP file (without extension)
-    subfolder_name = zip_path.stem  
+    subfolder_name = zip_path.stem
     extract_path = raw_dir / subfolder_name
     extract_path.mkdir(parents=True, exist_ok=True)
 
@@ -81,49 +81,43 @@ def extract_zip_to_raw(zip_path: Path, raw_dir: Path) -> None:
         zip_ref.extractall(extract_path)
 
 
-#---# Merge function
-def merge_vectors(shp_files: list[Path], output_path: Path) -> None:
-    # Read all shapefiles and concatenate them
-    gdfs = [gp.read_file(shp) for shp in shp_files]
-    merged = pd.concat(gdfs, ignore_index=True)
-    # Drop duplicates
-    merged = merged.drop_duplicates()
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    merged.to_file(output_path)
-    print(f"Merged vector saved to {output_path}")
-
-
 #---# Main execution for snakemake
 if __name__ == "__main__":
 
     # unpack snakemake
     html = snakemake.params.html
-    raw_dir = Path(snakemake.params.raw_dir)
-    output_dir = Path(snakemake.params.output_dir)
-    states = [str(p) for p in snakemake.params.states]
-
+    weather_variables = snakemake.params.weather_variables
+    year_range = range(snakemake.params["year_range"][0], snakemake.params["year_range"][1])
+    
+    months = [f"{i:02d}" for i in range(1, 13)]
+    # add yearly data
+    #months.insert(0, "")
+    
     # download files
-    downloaded_files = []
+    for variable in weather_variables:
+        downloaded_files = []
+        raw_dir = Path(snakemake.params.raw_dir) / variable
+        output_dir = Path(snakemake.params.output_dir) / variable
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        
+        for year in year_range:
+            for month in months:
+                url = f"{html}/{variable}/monthly/{str(year)}/prism_{variable}_us_30s_{str(year)}{str(month)}.zip"
+                try:
+                    zip_path = download_raw_html(url, raw_dir)
+                    downloaded_files.append(zip_path)
+                except Exception as e:
+                    print(f"Skipping {url}: {e}")
+        print (f"{variable} is downloaded")
 
-    for state in states:
-        state_st = str(state)
-        url = f"{html}/NHD_H_{state_st}_State_Shape.zip"
-        try:
-            zip_path = download_raw_html(url, raw_dir)
-            downloaded_files.append(zip_path)
-        except Exception as e:
-            print(f"Skipping {url}: {e}")
+        # extract zip
+        for zip_path in downloaded_files:
+            extract_zip_to_raw(zip_path, raw_dir)
+            zip_path.unlink()
+        
+        # save all tif files to the output_dir
+        for tif in raw_dir.rglob("*.tif"):
+            shutil.copy2(tif, output_dir)
+        print (f"Saving tif files for {variable} is complete")
 
-    # extract zip
-    for zip_path in downloaded_files:
-        extract_zip_to_raw(zip_path, raw_dir) 
-
-    # collect HU8, HU10, HU12 shapefiles from raw_dir
-    shp_files_8 = list(raw_dir.rglob("WBDHU8.shp"))
-    shp_files_10 = list(raw_dir.rglob("WBDHU10.shp"))
-    shp_files_12 = list(raw_dir.rglob("WBDHU12.shp"))
-
-    # merge file and save the merged file in output_dir
-    merge_vectors(shp_files_8, Path(snakemake.output.subbasin))
-    merge_vectors(shp_files_10, Path(snakemake.output.watershed))
-    merge_vectors(shp_files_12, Path(snakemake.output.subwatershed))
+    

@@ -1,166 +1,127 @@
-import geopandas as gp
+import geopandas as gpd
 import pandas as pd
 import numpy as np
+import os
+from shapely import intersection
 
-# Load data
-csb1623_clipped = gp.read_file("data/edited/CSB/CSB1623_clipped.gpkg")
-csb1724_clipped = gp.read_file("data/edited/CSB/CSB1724_clipped.gpkg")
-dises_shape = gp.read_file("data/edited/DISES/dises_consolidated.gpkg")
+# Input and output folders for Regrow
+input_folder_CSB = "data/edited/CSB/"
+output_folder_CSB = "data/edited/CSB/"
 
-# Reproject all to an equal-area CRS (NAD83/CONUS Albers)
-csb1623_clipped = csb1623_clipped.set_crs(epsg=5070)
-csb1724_clipped = csb1724_clipped.set_crs(epsg=5070)
-dises_shape = dises_shape.to_crs(epsg=5070)
+states = snakemake.params.states
+years = snakemake.params.years
 
-# Preserve original geometry before buffering
-csb1623_clipped['original_geometry'] = csb1623_clipped.geometry
-csb1724_clipped['original_geometry'] = csb1724_clipped.geometry
-
-# Create a buffered copy for spatial matching
-buffered_1623 = csb1623_clipped.copy()
-buffered_1623['geometry'] = buffered_1623.geometry.buffer(-30)
-buffered_1623 = buffered_1623[buffered_1623.is_valid & ~buffered_1623.is_empty]
-
-buffered_1724 = csb1724_clipped.copy()
-buffered_1724['geometry'] = buffered_1724.geometry.buffer(-30)
-buffered_1724 = buffered_1724[buffered_1724.is_valid & ~buffered_1724.is_empty]
-
-# Perform intersection
-intersections_1623 = gp.overlay(buffered_1623, dises_shape, how='intersection')
-intersections_1724 = gp.overlay(buffered_1724, dises_shape, how='intersection')
-
-# Calculate overlap area
-intersections_1623['overlap_area'] = intersections_1623.geometry.area
-intersections_1724['overlap_area'] = intersections_1724.geometry.area
-
-# Keep only the largest overlap per CSB polygon
-largest_overlap_1623 = intersections_1623.sort_values('overlap_area', ascending=False).drop_duplicates('CSBID')
-largest_overlap_1724 = intersections_1724.sort_values('overlap_area', ascending=False).drop_duplicates('CSBID')
-
-# Merge attributes back to original CSB data
-columns_to_merge_1623 = largest_overlap_1623.columns.difference(['geometry'])
-result_1623 = csb1623_clipped.merge(largest_overlap_1623[columns_to_merge_1623], on='CSBID', how='left', suffixes=('', '_temp'))
-
-columns_to_merge_1724 = largest_overlap_1724.columns.difference(['geometry'])
-result_1724 = csb1724_clipped.merge(largest_overlap_1724[columns_to_merge_1724], on='CSBID', how='left', suffixes=('', '_temp'))
-
-# Drop temporary columns
-cols_to_drop_1623 = [col for col in result_1623.columns if col.endswith('_temp')]
-result_1623.drop(columns=cols_to_drop_1623, inplace=True)
-
-cols_to_drop_1724 = [col for col in result_1724.columns if col.endswith('_temp')]
-result_1724.drop(columns=cols_to_drop_1724, inplace=True)
-
-# Restore original geometry
-result_1623 = gp.GeoDataFrame(result_1623, geometry=result_1623['original_geometry'], crs=csb1623_clipped.crs)
-result_1623.drop(columns='original_geometry', inplace=True)
-
-result_1724 = gp.GeoDataFrame(result_1724, geometry=result_1724['original_geometry'], crs=csb1724_clipped.crs)
-result_1724.drop(columns='original_geometry', inplace=True)
-
-# Add CSB-DISES assignment column
-result_1623['dises_assigned'] = result_1623['overlap_area'].notna().astype(str)
-result_1724['dises_assigned'] = result_1724['overlap_area'].notna().astype(str)
-result_1623['dises_assigned'] = result_1623['dises_assigned'].replace('-1', '1')
-result_1724['dises_assigned'] = result_1724['dises_assigned'].replace('-1', '1')
-
-
-# Add field match conditions (1,0, or NaN)
-result_1623['crop_match'] = np.where(
-    result_1623['field_crop'].isna(),
-    np.nan,
-    (
-        (result_1623['field_crop'] == result_1623['CDL2023'])
-    ).astype(int)
-)
-
-result_1623['area_match'] = np.where(
-    result_1623['field_size'].isna(),
-    np.nan,
-    (
-        (result_1623['CSBACRES'] >= 0.8 * result_1623['field_size']) &
-        (result_1623['CSBACRES'] <= 1.2 * result_1623['field_size'])
-    ).astype(int)
-)
-
-
-
-result_1724['crop_match'] = np.where(
-    result_1724['field_crop'].isna(),
-    np.nan,
-    (
-        (result_1724['field_crop'] == result_1724['CDL2023'])
-    ).astype(int)
-)
-
-result_1724['area_match'] = np.where(
-    result_1724['field_size'].isna(),
-    np.nan,
-    (
-        (result_1724['CSBACRES'] >= 0.8 * result_1724['field_size']) &
-        (result_1724['CSBACRES'] <= 1.2 * result_1724['field_size'])
-    ).astype(int)
-)
-
-
-# Define match_quality based on crop_match and area_match
-def determine_match_quality(row):
-    if pd.isna(row['crop_match']) and pd.isna(row['area_match']):
-        return np.nan
-    elif row['crop_match'] == 1 and row['area_match'] == 1:
-        return 'A'
-    elif row['crop_match'] == 1:
-        return 'B_crop'
-    elif row['area_match'] == 1:
-        return 'B_area'
-    else:
-        return 'F'
-
-result_1623['match_quality'] = result_1623.apply(determine_match_quality, axis=1)
-
-
-def determine_match_quality(row):
-    if pd.isna(row['crop_match']) and pd.isna(row['area_match']):
-        return np.nan
-    elif row['crop_match'] == 1 and row['area_match'] == 1:
-        return 'A'
-    elif row['crop_match'] == 1:
-        return 'B_crop'
-    elif row['area_match'] == 1:
-        return 'B_area'
-    else:
-        return 'F'
-
-result_1724['match_quality'] = result_1724.apply(determine_match_quality, axis=1)
-
+# Load DISES data
+dises_shape = gpd.read_file("data/edited/DISES/dises_consolidated.gpkg")
 
 # Rename DISES columns for clarity
-result_1623.rename(columns={
-    'field_crop': 'field_crop_dises',
-    'field_name': 'field_name_dises',
-    'field_size': 'field_size_dises',
-    'from_data_table': 'from_data_table_dises'
-}, inplace=True)
+dises_shape = dises_shape.add_suffix('_dises')
 
-result_1724.rename(columns={
-    'field_crop': 'field_crop_dises',
-    'field_name': 'field_name_dises',
-    'field_size': 'field_size_dises',
-    'from_data_table': 'from_data_table_dises'
-}, inplace=True)
+for year in years:
+    for state in states:
+            
+        input_path_csb = os.path.join(input_folder_CSB, f"{state}_CSB{year}_shape_table.parquet")
+        output_path_geospatial = os.path.join(output_folder_CSB, f"{state}_CSB{year}_dises_spatial.parquet")
+        output_path_table = os.path.join(output_folder_CSB, f"{state}_CSB{year}_dises_table.parquet")
+    
+        # Load CSB data
+        csb_clipped = gpd.read_parquet(input_path_csb)
+        
+        # Setting active geometry column
+        csb_clipped = csb_clipped.set_geometry('geometry')
+        dises_shape = dises_shape.set_geometry('geometry_dises')
 
-# Preview result
-print(result_1623.head())
-print(result_1724.head())
+        # Reproject all to an equal-area CRS (NAD83/CONUS Albers)
+        csb_clipped = csb_clipped.set_crs(epsg=5070)
+        dises_shape = dises_shape.to_crs(epsg=5070)
 
+        # Preserve original geometry before buffering
+        csb_clipped['original_geometry'] = csb_clipped.geometry
+        dises_shape['original_geometry_dises'] = dises_shape.geometry
 
-# Save spatial joined CSB shape
-result_1623.to_file("data/edited/CSB/CSB1623_dises_spatialjoin.geojson", driver="GeoJSON")
-result_1724.to_file("data/edited/CSB/CSB1724_dises_spatialjoin.geojson", driver="GeoJSON")
+        # Create a buffered copy for spatial matching
+        buffered = csb_clipped.copy()
+        buffered['geometry'] = buffered.geometry.buffer(-10)
+        buffered = buffered[buffered.is_valid & ~buffered.is_empty]
 
-# Save attribute table as CSV
-attribute_table_1623 = result_1623.drop(columns='geometry')
-attribute_table_1724 = result_1724.drop(columns='geometry')
+        # Perform intersection
+        intersections = gpd.overlay(buffered, dises_shape, how='intersection')
 
-attribute_table_1623.to_csv("data/edited/CSB/CSB1623_dises_spatialjoin_table.csv", index=False)
-attribute_table_1724.to_csv("data/edited/CSB/CSB1724_dises_spatialjoin_table.csv", index=False)
+        # Calculate overlap area
+        intersections['overlap_area_dises'] = intersections.geometry.area / 4046.8564224
+
+        # Keep only the largest overlap per CSB polygon
+        largest_overlap = intersections.sort_values('overlap_area_dises', ascending=False).drop_duplicates('CSBID')
+
+        # Merge attributes back to original CSB data
+        columns_to_merge = largest_overlap.columns.difference(['geometry'])
+        csb_dises = csb_clipped.merge(largest_overlap[columns_to_merge], on='CSBID', how='left', suffixes=('', '_temp'))
+
+        # Drop temporary columns
+        cols_to_drop = [col for col in csb_dises.columns if col.endswith('_temp')]
+        csb_dises.drop(columns=cols_to_drop, inplace=True)
+
+        # Add CSB-DISES assignment column
+        csb_dises['field_assigned_dises'] = csb_dises['overlap_area_dises'].notna().astype(str)
+        csb_dises['field_assigned_dises'] = csb_dises['field_assigned_dises'].replace({'True': 'Y', 'False': 'N'})
+        
+        # Calculate overlap area between Regrow and assigned DISES fields (in acres) and its share as % of CSB field area
+        mask_overplap = csb_dises['field_assigned_dises'] == 'Y'
+        csb_dises.loc[mask_overplap, 'overlap_area_dises'] = (
+            intersection(csb_dises.loc[mask_overplap, 'original_geometry'], csb_dises.loc[mask_overplap, 'original_geometry_dises']).area) / 4046.8564224
+        csb_dises.loc[mask_overplap, 'overlap_area_share_dises'] = (
+            intersection(csb_dises.loc[mask_overplap, 'original_geometry'], csb_dises.loc[mask_overplap, 'original_geometry_dises']).area
+            ) / csb_dises.loc[mask_overplap, 'original_geometry'].area
+        
+        # Restore original geometry
+        csb_dises.drop(columns='original_geometry_dises', inplace=True)
+        csb_dises = gpd.GeoDataFrame(csb_dises, geometry=csb_dises['original_geometry'], crs=csb_clipped.crs)
+        csb_dises.drop(columns='original_geometry', inplace=True)
+
+        # Add field match conditions (1,0, or NaN)
+        csb_dises['crop_match_dises'] = np.where(
+            csb_dises['field_crop_23_dises'].isna(),
+            np.nan,
+            (
+                (csb_dises['field_crop_23_dises'] == csb_dises['CDL2023'])
+            ).astype(int)
+        )
+
+        csb_dises['area_match_dises'] = np.where(
+            csb_dises['field_size_dises'].isna(),
+            np.nan,
+            (
+                (csb_dises['CSBACRES'] >= 0.75 * csb_dises['field_size_dises']) &
+                (csb_dises['CSBACRES'] <= 1.25 * csb_dises['field_size_dises'])
+            ).astype(int)
+        )
+
+        # Define match_quality based on crop_match_dises and area_match_dises
+        def determine_match_quality(row):
+            if pd.isna(row['crop_match_dises']) and pd.isna(row['area_match_dises']):
+                return np.nan
+            elif row['crop_match_dises'] == 1 and row['area_match_dises'] == 1:
+                return 'A'
+            elif row['crop_match_dises'] == 1:
+                return 'B_crop'
+            elif row['area_match_dises'] == 1:
+                return 'B_area'
+            else:
+                return 'F'
+
+        csb_dises['match_quality_dises'] = csb_dises.apply(determine_match_quality, axis=1)
+        
+        # Keep only the necessary columns
+        cols_to_keep = [c for c in csb_dises.columns if c.endswith("_dises") or c in ["CSBID", "geometry"]]
+        csb_dises = csb_dises[cols_to_keep]
+        
+        # Preview csb_dises
+        print(csb_dises.head())
+
+        # Save spatial joined CSB_dises shape file
+        #csb_dises.to_parquet(output_path_geospatial, compression="zstd")
+
+        # Save attribute table as CSV
+        attribute_table = csb_dises.drop(columns='geometry')
+        attribute_table.to_parquet(output_path_table, compression="zstd")
+        print(f"CSB{year} and DISES for {state} are merged and saved")
