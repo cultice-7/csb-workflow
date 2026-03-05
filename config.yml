@@ -1,0 +1,62 @@
+# Config for downloading files only.
+
+csb: # adjust year in Snakefile.
+  base_html: "https://www.nass.usda.gov/Research_and_Science/Crop-Sequence-Boundaries/datasets"
+  raw_dir: "data/CSB"
+  output_dir: "data/CSB"
+
+cdl:
+  base_html: "https://www.nass.usda.gov/Research_and_Science/Cropland/Release/datasets"
+  year: [2014, 2025] #2014-2024
+  raw_dir: "data/CDL"
+  output_dir: "data/CDL"
+
+elevation:
+  base_html: "https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/1/TIFF/current"
+  y_range: [35, 51] #N36 to N50
+  x_range: [81, 100] #W081 to W099
+  states: ['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI'] 
+  raw_dir: "data/Geo/elevation/tiles"
+  output_dir: "data/Geo/elevation"
+
+census_tract: # define census tract file in Snakefile
+  base_html: "https://www2.census.gov/geo/tiger/GENZ2023/shp"
+  raw_dir: "data/Census/census_tract"
+  output_dir: "data/Census/census_tract"
+
+state_bound: # define state boundary file in Snakefile
+  base_html: "https://www2.census.gov/geo/tiger/GENZ2023/shp"
+  raw_dir: "data/Census/state_bound"
+  output_dir: "data/Census/state_bound"
+
+county_bound: # define county boundary file in Snakefile
+  base_html: "https://www2.census.gov/geo/tiger/GENZ2023/shp"
+  raw_dir: "data/Census/county_bound"
+  output_dir: "data/Census/county_bound"
+
+roads: 
+  base_html: "https://www2.census.gov/geo/tiger/TIGER2023/PRISECROADS"
+  prefixes: ['17', '18', '19', '26', '27', '39', '55', '21', '29', '31', '38', '42', '46', '54'] # main and surrounding states
+  raw_dir: "data/Census/road/raw"
+  output_dir: "data/Census/road"
+
+watershed:
+  base_html: "https://prd-tnm.s3.amazonaws.com/StagedProducts/Hydrography/NHD/State/Shape"
+  states: ["Ohio", "Indiana", "Michigan", "Illinois", "Iowa", "Minnesota", "Wisconsin"]
+  raw_dir: "data/Geo/watershed/raw"
+  output_dir: "data/Geo/watershed"
+
+weather:
+  base_html: "https://data.prism.oregonstate.edu/time_series/us/an/800m"
+  weather_variables: ["ppt", "tdmean", "tmax", "tmin", "tmean", "vpdmax", "vpdmin"]
+  states: ['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']
+  year: [2014, 2025] #2014-2024
+  raw_dir: "data/Weather/raw"
+  output_dir: "data/Weather"
+
+price:
+  N_nearest: 5
+  states: ['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']
+  crops: ['corn', 'soybeans', 'wheat']
+  raw_dir: "data/Grain Price"
+  output_dir: "data/Grain Price"
