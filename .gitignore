@@ -57,5 +57,3 @@ data/
 .snakemake/
 .vscode/
 Thumbs.db
-.thumbs.db
-.DS_Store

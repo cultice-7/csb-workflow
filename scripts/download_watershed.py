@@ -20,7 +20,7 @@ def download_raw_html(
     # path for downloaded file
     raw_path = Path(raw_dir) / raw_filename # stack the path using Path object
 
-    # ensure parent directory exists
+    # add a comment ensure parent directory exists
     if not raw_path.parent.exists():
         raw_path.parent.mkdir()
 
