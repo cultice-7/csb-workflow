@@ -56,3 +56,6 @@ data/
 # Other ignores
 .snakemake/
 .vscode/
+Thumbs.db
+.thumbs.db
+.DS_Store
