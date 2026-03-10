@@ -7,9 +7,9 @@ import os
 from pathlib import Path
 
 
-# Input and output folders for Regrow
-input_folder_Regrow = "data/edited/Regrow/"
-output_folder_Regrow = "data/edited/Regrow/"
+# Input and output folders for CSB
+input_folder_CSB = "data/edited/CSB/"
+output_folder_CSB = "data/edited/CSB/"
 output_folder_soil = "data/edited/Soil/"
 
 # Pull list of states for running the code
@@ -19,76 +19,76 @@ soil_depth_cm = snakemake.params.soil_depth_cm
 
 for state in states:
     
-    input_path_Regrow = os.path.join(input_folder_Regrow, f"{state}_regrow_fieldID_geometry.parquet")
-    output_path_spatial = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_8_spatial.parquet")
-    output_path_table = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_8_table.parquet")
+    input_path_CSB = os.path.join(input_folder_CSB, f"{state}_CSB1724_CSBID_geometry.parquet")
+    output_path_spatial = os.path.join(output_folder_CSB, f"{state}_CSB1724_supplement_8_spatial.parquet")
+    output_path_table = os.path.join(output_folder_CSB, f"{state}_CSB1724_supplement_8_table.parquet")
     output_path_integrated_soil = os.path.join(output_folder_soil, f"{state}_integrated_soil_variables.parquet")
     
-    # Load regrow_dises joined datasets
-    regrow_geometry = gpd.read_parquet(input_path_Regrow)
+    # Load CSB_dises joined datasets
+    CSB_geometry = gpd.read_parquet(input_path_CSB)
     
     # Reproject geometry to the same CRS (NAD83/CONUS Albers)
-    regrow_geometry = regrow_geometry.to_crs(epsg=5070)
+    CSB_geometry = CSB_geometry.to_crs(epsg=5070)
     
     # Create soil dataset
-    regrow_soil = regrow_geometry[['field_id']]
+    CSB_soil = CSB_geometry[['CSBID']]
     
     
     
-    ### Clean Regrow: Regrow geometries contain overlaps which harms rasterization, we need to remove overlaps ###
-    gdf = regrow_geometry.copy()
+    ### Clean CSB: CSB geometries contain overlaps which harms rasterization, we need to remove overlaps ###
+    gdf = CSB_geometry.copy()
     gdf["geometry"] = gdf["geometry"].buffer(0)
     gdf["area"] = gdf.geometry.area
 
-    # Overlay Regrow on itself. This will produce all overlapping polygons (including boundaries)
-    regrow_overlaps = gpd.overlay(gdf, gdf, how="intersection")
+    # Overlay CSBID on itself. This will produce all overlapping polygons (including boundaries)
+    CSB_overlaps = gpd.overlay(gdf, gdf, how="intersection")
 
     # Remove self-overlaps
-    regrow_overlaps = regrow_overlaps[regrow_overlaps["field_id_1"] != regrow_overlaps["field_id_2"]]
+    CSB_overlaps = CSB_overlaps[CSB_overlaps["CSBID_1"] != CSB_overlaps["CSBID_2"]]
 
     # Compute overlap ratio
     # Determine the smaller area in each pair
-    regrow_overlaps["min_area"] = regrow_overlaps[["area_1", "area_2"]].min(axis=1)
+    CSB_overlaps["min_area"] = CSB_overlaps[["area_1", "area_2"]].min(axis=1)
 
     # Compute overlap fraction relative to smaller polygon
-    regrow_overlaps["overlap_fraction"] = regrow_overlaps.geometry.area / regrow_overlaps["min_area"]
+    CSB_overlaps["overlap_fraction"] = CSB_overlaps.geometry.area / CSB_overlaps["min_area"]
 
     # Keep only those with overlap >= 50%
-    regrow_overlaps = regrow_overlaps[regrow_overlaps["overlap_fraction"] >= 0.5]
+    CSB_overlaps = CSB_overlaps[CSB_overlaps["overlap_fraction"] >= 0.5]
 
     # Keep only unique pairs (A,B) same as (B,A)
     # Make a tuple of (smaller_area_parcel, larger_area_parcel)
-    regrow_overlaps["pair"] = regrow_overlaps.apply(
-        lambda row: (row["field_id_1"], row["field_id_2"]) if row["area_1"] <= row["area_2"] else (row["field_id_2"], row["field_id_1"]), axis=1)
+    CSB_overlaps["pair"] = CSB_overlaps.apply(
+        lambda row: (row["CSBID_1"], row["CSBID_2"]) if row["area_1"] <= row["area_2"] else (row["CSBID_2"], row["CSBID_1"]), axis=1)
     # Drop duplicates
-    regrow_overlaps = regrow_overlaps.drop_duplicates(subset="pair").reset_index(drop=True)
-    # Assign smaller field IDs in each pair to field_id_1 column and larger field IDs to field_id_2
-    regrow_overlaps.loc[:, 'field_id_1'] = regrow_overlaps["pair"].apply(lambda x: x[0] if pd.notna(x) else None)
-    regrow_overlaps.loc[:, 'field_id_2'] = regrow_overlaps["pair"].apply(lambda x: x[1] if pd.notna(x) else None)
-    # Rename field_id_1 and field_id_2 accordingly
-    regrow_overlaps.rename(columns={"field_id_1": "field_id_smaller", "field_id_2": "field_id_larger"}, inplace = True)
+    CSB_overlaps = CSB_overlaps.drop_duplicates(subset="pair").reset_index(drop=True)
+    # Assign smaller field IDs in each pair to CSBID_1 column and larger field IDs to CSBID_2
+    CSB_overlaps.loc[:, 'CSBID_1'] = CSB_overlaps["pair"].apply(lambda x: x[0] if pd.notna(x) else None)
+    CSB_overlaps.loc[:, 'CSBID_2'] = CSB_overlaps["pair"].apply(lambda x: x[1] if pd.notna(x) else None)
+    # Rename CSBID_1 and CSBID_2 accordingly
+    CSB_overlaps.rename(columns={"CSBID_1": "CSBID_smaller", "CSBID_2": "CSBID_larger"}, inplace = True)
     # Keep only necessary columns
-    regrow_overlaps = regrow_overlaps[['field_id_smaller', 'field_id_larger', 'overlap_fraction']]
+    CSB_overlaps = CSB_overlaps[['CSBID_smaller', 'CSBID_larger', 'overlap_fraction']]
     
-    # Clean regrow fields to remove overlapping fields
+    # Clean CSB fields to remove overlapping fields
     # Extract all smaller parcel IDs from the pairs
-    overlap_smaller_field_ids = regrow_overlaps["field_id_smaller"].unique()
-    # Drop rows whose field_id is in smaller_ids and reset index
-    regrow_geometry = (regrow_geometry[~regrow_geometry["field_id"].isin(overlap_smaller_field_ids)]).reset_index(drop=True)
+    overlap_smaller_CSBIDs = CSB_overlaps["CSBID_smaller"].unique()
+    # Drop rows whose CSBID is in smaller_ids and reset index
+    CSB_geometry = (CSB_geometry[~CSB_geometry["CSBID"].isin(overlap_smaller_CSBIDs)]).reset_index(drop=True)
         
     
     
-    ### Process mukey raster file to create pairs of Regrow field_id: mukeys (pixel values) ###
-    # Regrow field_id → unique field integers
-    id_map = {s: i for i, s in enumerate(regrow_geometry["field_id"].unique())}
-    # Unique field integers → Regrow field_id
+    ### Process mukey raster file to create pairs of CSBID CSBID: mukeys (pixel values) ###
+    # CSBID CSBID → unique field integers
+    id_map = {s: i for i, s in enumerate(CSB_geometry["CSBID"].unique())}
+    # Unique field integers → CSBID CSBID
     reverse_id_map = {v: k for k, v in id_map.items()} 
-    regrow_geometry["pid"] = regrow_geometry["field_id"].map(id_map)
+    CSB_geometry["pid"] = CSB_geometry["CSBID"].map(id_map)
 
     # Open raster
     with rasterio.open(f"data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif") as src:
-        # Match CRS between vector Regrow and gSSURGO raster
-        regrow_geometry = regrow_geometry.to_crs(src.crs)
+        # Match CRS between vector CSBID and gSSURGO raster
+        CSB_geometry = CSB_geometry.to_crs(src.crs)
 
         # Read gSSURGO raster file
         band = src.read(1)
@@ -97,7 +97,7 @@ for state in states:
         width = src.width
 
         # Rasterize fields: assign unique field integers to pixels whose centers lie inside a given polygon
-        shapes = ((geom, pid) for geom, pid in zip(regrow_geometry.geometry, regrow_geometry.pid))
+        shapes = ((geom, pid) for geom, pid in zip(CSB_geometry.geometry, CSB_geometry.pid))
         
         parcel_raster = rasterize(
             shapes=shapes,
@@ -115,14 +115,14 @@ for state in states:
     parcel_ids = parcel_raster[rows, cols]
     values = band[rows, cols].astype(str)
 
-    # Build dictionary of field_id → pixel values
-    fieldID_mukeys = {field_id: [] for field_id in regrow_geometry.field_id}
+    # Build dictionary of CSBID → pixel values
+    CSBID_mukeys = {CSBID: [] for CSBID in CSB_geometry.CSBID}
     for pid, val in zip(parcel_ids, values):
-        fieldID_mukeys[reverse_id_map[pid]].append(val)
+        CSBID_mukeys[reverse_id_map[pid]].append(val)
         
     # Find and print fields with no pixels assigned
-    print("Regrow fields with no pixels assigned \n")
-    for k, v in fieldID_mukeys.items():
+    print("CSBID fields with no pixels assigned \n")
+    for k, v in CSBID_mukeys.items():
         if len(v) == 0:
             print(k, v)
     
@@ -232,7 +232,7 @@ for state in states:
         print(f"WARNING DUPLICATING ROWS: {mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog[mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog.duplicated(subset=['mukey', 'cokey', 'hzdept_r'], keep=False)]}") 
     
     # Save the integrated soil dataset
-    mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog.to_parquet(output_path_integrated_soil, compression="zstd")
+    #mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog.to_parquet(output_path_integrated_soil, compression="zstd")
     
     
     ## Creating soil variables (the list of variables is provided by the soil team)
@@ -327,17 +327,17 @@ for state in states:
 
 
 
-    ### Compute soil variables for each Regrow field ###
+    ### Compute soil variables for each CSBID field ###
     # Split numerical and categorical columns
     num_cols = mukey_soil_variables.select_dtypes(include='number').columns.drop(['mukey', 'lkey'], errors='ignore')
     cat_cols = mukey_soil_variables.select_dtypes(exclude='number').columns.drop(['mukey', 'lkey'], errors='ignore')
 
     # Index soil and target datasets to speed up searching
     soil_indexed = mukey_soil_variables.set_index("mukey")
-    regrow_soil = regrow_soil.set_index("field_id")
+    CSB_soil = CSB_soil.set_index("CSBID")
 
-    # Compute soil variables for each Regrow field by taking average (mode) across all mukeys within a given field
-    for fieldID, mukeys in fieldID_mukeys.items():
+    # Compute soil variables for each CSBID field by taking average (mode) across all mukeys within a given field
+    for fieldID, mukeys in CSBID_mukeys.items():
         if mukeys:
             sub = soil_indexed.reindex(mukeys).dropna(how="all")
             if sub.empty:
@@ -348,16 +348,16 @@ for state in states:
 
             row = pd.concat([num_mean, cat_mode])
 
-            regrow_soil.loc[fieldID, row.index] = row.values
+            CSB_soil.loc[fieldID, row.index] = row.values
 
-    # Map each smaller_field_id to its corresponding larger_field_id and then copy the values from the larger fields back into the target dataset
-    regrow_soil.loc[regrow_overlaps["field_id_smaller"]] = regrow_soil.loc[regrow_overlaps["field_id_larger"]].values
-    regrow_soil = regrow_soil.reset_index()
+    # Map each smaller_CSBID to its corresponding larger_CSBID and then copy the values from the larger fields back into the target dataset
+    CSB_soil.loc[CSB_overlaps["CSBID_smaller"]] = CSB_soil.loc[CSB_overlaps["CSBID_larger"]].values
+    CSB_soil = CSB_soil.reset_index()
     
     ### Save output files ###
     # Convert all float64 to float32
-    float64_cols = regrow_soil.select_dtypes(include="float64").columns
-    regrow_soil[float64_cols] = regrow_soil[float64_cols].astype("float32")
-    
-    regrow_soil.to_parquet(output_path_table, compression="zstd")
+    float64_cols = CSB_soil.select_dtypes(include="float64").columns
+    CSB_soil[float64_cols] = CSB_soil[float64_cols].astype("float32")
+
+    CSB_soil.to_parquet(output_path_table, compression="zstd")
     print(f"Creating and saving soil dataset for {state} is complete")

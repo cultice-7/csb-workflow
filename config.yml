@@ -60,3 +60,9 @@ price:
   crops: ['corn', 'soybeans', 'wheat']
   raw_dir: "data/Grain Price"
   output_dir: "data/Grain Price"
+
+soil:
+  states: ['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']
+  soil_depth_cm: 30
+  raw_dir: "data/gSSURGO"
+  output_dir: "data/gSSURGO"

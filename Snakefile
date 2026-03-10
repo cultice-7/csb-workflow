@@ -627,3 +627,31 @@ rule join_csb_supplement_7:
 rule convert_csv_to_parquet:
     script: "scripts/convert_csv_to_parquet.py"
 
+#---# Supplementary data 8: soil composition data
+rule join_regrow_supplement_8:
+    input:
+        regrow_geometry = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']),
+        mukey_clipped = expand("data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif", state=["OH", "IN", "MI", "IA", "IL", "WI", "MN"]),
+        gSSURGO_tabular = expand("data/gSSURGO/gSSURGO_{state}/gSSURGO_{state}.gdb", state=["OH", "IN", "MI", "IA", "IL", "WI", "MN"])
+    output:
+        #regrow_supplement_8_shape = expand("data/edited/Regrow/{state}_regrow_supplement_8_spatial.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']),
+        regrow_supplement_8_table = expand("data/edited/Regrow/{state}_regrow_supplement_8_table.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI'])
+    params:
+        states = config["soil"]["states"],
+        soil_depth_cm = config["soil"]["soil_depth_cm"]
+    script:
+        "scripts/join_regrow_supplement_8.py"
+
+rule join_csb_supplement_8:
+    input:
+        csb1724_geometry = expand("data/edited/CSB/{state}_CSB1724_CSBID_geometry.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']),
+        mukey_clipped = expand("data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif", state=["OH", "IN", "MI", "IA", "IL", "WI", "MN"]),
+        gSSURGO_tabular = expand("data/gSSURGO/gSSURGO_{state}/gSSURGO_{state}.gdb", state=["OH", "IN", "MI", "IA", "IL", "WI", "MN"])
+    output:
+        #csb1724_supplement_8_shape = expand("data/edited/CSB/{state}_CSB1724_supplement_8_spatial.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']),
+        csb1724_supplement_8_table = expand("data/edited/CSB/{state}_CSB1724_supplement_8_table.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI'])
+    params:
+        states = config["soil"]["states"],
+        soil_depth_cm = config["soil"]["soil_depth_cm"]
+    script:
+        "scripts/join_csb_supplement_8.py"
