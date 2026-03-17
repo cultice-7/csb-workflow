@@ -283,6 +283,22 @@ rule all:
         expand("data/edited/CSB/{state}_CSB1724_supplement_8_table.parquet", state=STATES),
 ```
 
+Running `snakemake` now triggers the complete pipeline to produce **142 final output files** (compared to only 7 intermediate files before):
+
+| Final Output | States | Files | Format |
+|-------------|--------|-------|--------|
+| Regrow CDL validation (geojson) | 7 | 7 | GeoJSON |
+| Regrow CDL validation summaries | 7 x 2 | 14 | CSV |
+| Regrow-DISES join tables | 3 (OH, IN, MI) | 3 | Parquet |
+| CSB-DISES join tables | 3 states x 2 year ranges | 6 | Parquet |
+| Regrow supplement tables 1-7 | 7 states x 7 supplements | 49 | CSV |
+| Regrow supplement table 8 (soil) | 7 | 7 | Parquet |
+| CSB supplement tables 1-7 | 7 states x 7 supplements | 49 | CSV |
+| CSB supplement table 8 (soil) | 7 | 7 | Parquet |
+| **Total** | | **142** | |
+
+Snakemake resolves the full DAG backwards from these 142 final outputs through all intermediate steps (downloading, cleaning, clipping, spatial joining) all the way to the raw data sources. Every rule in the pipeline is now reachable from `rule all`.
+
 ### 3c. Section Organization
 
 Rules are organized by pipeline phase with consistent headers:
