@@ -1,52 +1,57 @@
 import geopandas as gp
-import os
+from pathlib import Path
 import gc
 
 ### Note: Two CSB files are processed separately due to their large size ###
 
-# Load CSB 2016-2023
+# FIPS code to state abbreviation mapping
+FIPS_TO_STATE = {
+    "17": "IL",
+    "18": "IN",
+    "19": "IA",
+    "26": "MI",
+    "27": "MN",
+    "39": "OH",
+    "55": "WI",
+}
+
+# Get states from snakemake params
+states = snakemake.params.states
+
+# Build FIPS list from requested states (reverse lookup)
+STATE_TO_FIPS = {v: k for k, v in FIPS_TO_STATE.items()}
+target_fips = [STATE_TO_FIPS[s] for s in states]
+
+output_dir = Path("data/edited/CSB")
+output_dir.mkdir(parents=True, exist_ok=True)
+
+# Load and clip CSB 2016-2023
 csb1623 = gp.read_file("data/CSB/CSB1623.gdb")
 
-# Define FIPS codes for states
-# IL - 17, IN - 18, IA - 19, MI - 26, MN - 27, OH -  39, WI - 55
-target_fips = ['17', '18', '19', '26', '27', '39', '55']
-state_name =  ['IL', 'IN', 'IA', 'MI', 'MN', 'OH', 'WI']
+for fips in target_fips:
+    state_name = FIPS_TO_STATE[fips]
+    csb1623_clipped = csb1623[csb1623["STATEFIPS"] == fips]
+    csb1623_clipped.to_file(
+        output_dir / f"{state_name}_CSB1623_clipped.gpkg", driver="GPKG"
+    )
+    print(f"CSB1623 for {state_name} is clipped")
 
-for state_num in target_fips:
-    # Clip CSBs to the selected states
-    csb1623_clipped = csb1623[csb1623['STATEFIPS'] == state_num]
-
-    # Save to new files
-    os.makedirs("data/edited/CSB", exist_ok=True)
-    pos = target_fips.index(state_num)
-    csb1623_clipped.to_file(f"data/edited/CSB/{state_name[pos]}_CSB1623_clipped.gpkg", driver="GPKG")
-    print(f"CSB1623 for {state_name[pos]} is clipped")
-
-# Delete the files to free memory and force garbage collection
+# Delete to free memory and force garbage collection
 del csb1623
-del csb1623_clipped
 gc.collect()
 
 
-
-# Load CSB 2017-2024
+# Load and clip CSB 2017-2024
 csb1724 = gp.read_file("data/CSB/CSB1724.gdb")
 
-# Define FIPS codes for states
-# IL - 17, IN - 18, IA - 19, MI - 26, MN - 27, OH -  39, WI - 55
-target_fips = ['17', '18', '19', '26', '27', '39', '55']
-state_name =  ['IL', 'IN', 'IA', 'MI', 'MN', 'OH', 'WI']
+for fips in target_fips:
+    state_name = FIPS_TO_STATE[fips]
+    csb1724_clipped = csb1724[csb1724["STATEFIPS"] == fips]
+    csb1724_clipped.to_file(
+        output_dir / f"{state_name}_CSB1724_clipped.gpkg", driver="GPKG"
+    )
+    print(f"CSB1724 for {state_name} is clipped")
 
-for state_num in target_fips:
-    # Clip CSBs to the selected states
-    csb1724_clipped = csb1724[csb1724['STATEFIPS'] == state_num]
-
-    # Save to the existimg directory
-    pos = target_fips.index(state_num)
-    csb1724_clipped.to_file(f"data/edited/CSB/{state_name[pos]}_CSB1724_clipped.gpkg", driver="GPKG")
-    print(f"CSB1724 for {state_name[pos]} is clipped")
-
-# Delete the files to free memory and force garbage collection
+# Delete to free memory and force garbage collection
 del csb1724
-del csb1724_clipped
 gc.collect()
