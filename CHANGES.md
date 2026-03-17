@@ -35,7 +35,19 @@ csb-workflow/                    csb-workflow/
                                  └── scripts/
 ```
 
-The main `Snakefile` now contains only configuration, constants, `rule all`, and `include:` statements. All rule definitions are in `rules/*.smk` organized by pipeline phase: download, clean, clip/reproject, spatial joins, and supplementary data joins.
+### Role of Each File
+
+| File | Role in Pipeline | What It Contains |
+|------|-----------------|------------------|
+| **`Snakefile`** | Pipeline entry point | Global config, constants (`STATES`, `YEARS`, etc.), `rule all` defining all 142 final outputs, and `include:` statements that load the rule modules. This is what Snakemake reads first. |
+| **`rules/download.smk`** | Stage 1: Data acquisition | 10 rules that download external datasets: Census boundaries (tract, state, county), roads (TIGER), elevation (3DEP), watersheds (NHD), weather (PRISM), Crop Sequence Boundaries (CSB), and Cropland Data Layer (CDL). |
+| **`rules/clean.smk`** | Stage 2: Data preparation | 9 rules that clean and transform raw data into analysis-ready formats: grain price cleaning/geocoding, DISES table and shape cleaning, Regrow table cleaning (main crop, tillage, cover crop, shape, wide table), and the Regrow shape-table join that produces the `.parquet` files used by all downstream rules. |
+| **`rules/clip.smk`** | Stage 3: Spatial subsetting | 7 rules that clip national-scale rasters and vectors to the 7 study states: CDL rasters, CSB shapefiles, weather rasters (9 PRISM variables), gSSURGO soil rasters, and slope/elevation reprojection. These produce the state-level inputs needed by the supplement joins. |
+| **`rules/joins.smk`** | Stage 4: Core spatial joins | 3 rules for CDL validation of Regrow fields (with zonal statistics) and spatial joins between Regrow/CSB and the DISES dataset for the 3 DISES states (OH, IN, MI). |
+| **`rules/supplements.smk`** | Stage 5: Data enrichment | 17 rules (8 for Regrow + 8 for CSB + 1 utility) that enrich each dataset with 8 supplementary layers: (1) Census tract location, (2) slope/elevation, (3) watershed boundaries, (4) nearest road distance, (5) neighboring field activities, (6) monthly weather, (7) crop prices from nearest elevators/counties, (8) soil composition from gSSURGO. These produce the final output tables. |
+| **`config.yml`** | Configuration | URLs, directory paths, state lists, year ranges, weather variables, crop types, and other parameters referenced by rules via `config["key"]`. |
+| **`envs/env.yml`** | Conda environment | Python dependencies (snakemake, geopandas, rasterio, rasterstats, etc.) needed to run the pipeline. |
+| **`scripts/`** | Python scripts | 47 Python scripts that contain the actual processing logic. Each rule's `script:` directive points to one of these. Scripts receive parameters from Snakemake via `snakemake.params.*`. |
 
 ---
 
