@@ -108,15 +108,15 @@ rule download_watershed:
 rule download_weather:
     input:
     output:
-        ppt = expand("data/Weather/ppt/prism_ppt_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
-        tmax =  expand("data/Weather/tmax/prism_tmax_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
-        tmin =  expand("data/Weather/tmin/prism_tmin_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
-        tmean =  expand("data/Weather/tmean/prism_tmean_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
-        tdmean =  expand("data/Weather/tdmean/prism_tdmean_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
-        vpdmax =  expand("data/Weather/vpdmax/prism_vpdmax_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
-        vpdmin = expand("data/Weather/vpdmin/prism_vpdmin_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
-        soltotal = expand("data/Weather/soltotal/prism_soltotal_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
-        solslope = expand("data/Weather/solslope/prism_solslope_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)])
+        ppt = expand("data/Weather/ppt/prism_ppt_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
+        tmax =  expand("data/Weather/tmax/prism_tmax_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
+        tmin =  expand("data/Weather/tmin/prism_tmin_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
+        tmean =  expand("data/Weather/tmean/prism_tmean_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
+        tdmean =  expand("data/Weather/tdmean/prism_tdmean_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
+        vpdmax =  expand("data/Weather/vpdmax/prism_vpdmax_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
+        vpdmin = expand("data/Weather/vpdmin/prism_vpdmin_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
+        soltotal = expand("data/Weather/soltotal/prism_soltotal_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
+        solslope = expand("data/Weather/solslope/prism_solslope_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)])
     params:
         weather_variables = config["weather"]["weather_variables"],
         states = config["weather"]["states"],
@@ -232,6 +232,24 @@ rule clean_regrow_cover_crop:
     script:
         "scripts/clean_regrow_cover_crop.py"
 
+# Join Regrow Updates (adding 2025 data)
+rule join_regrow_updates:
+    input:
+        regrow_raw_geometry_2014_2024 = expand("data/Regrow/2014-2024/{state}_field_boundaries.geojson", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        regrow_raw_geometry_2025 = expand("data/Regrow/2025/{state}_2025_boundaries.geojson", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        regrow_raw_table_2014_2024 = expand("data/Regrow/2014-2024/Monitor_data_{state}.csv", state=["OH", "MN_WI_IA_IN_IL", "MI"]),
+        regrow_raw_table_2025 = expand("data/Regrow/2025/{state}_2025_Data.csv", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"])
+    output:
+        regrow_merged_geometry = expand("data/Regrow/{state}_field_boundaries.geojson", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        regrow_concatenated_table = expand("data/Regrow/Monitor_data_{state}.csv", state=["OH", "MN_WI_IA_IN_IL", "MI"])
+    params:
+        input_2014_2024_dir = config["regrow"]["raw_2014_2024_dir"],
+        input_2025_dir = config["regrow"]["raw_2025_dir"],
+        output_dir = config["regrow"]["raw_dir"],
+        states = config["regrow"]["states"]
+    script:
+        "scripts/join_regrow_updates.py"
+
 # Clean Regrow field geojson & Join with attribute tables
 rule clean_regrow_shape:
     input:
@@ -247,11 +265,13 @@ rule clean_regrow_shape:
 # Clean Regrow data table (monitor data)
 rule clean_regrow_table:
     input:
-        regrow_OH = "data/Regrow/Monitor_data_OH.csv",
-        regrow_MN_WI_IA_IN_IL = "data/Regrow/Monitor_data_MN_WI_IA_IN_IL.csv",
-        regrow_MI = "data/Regrow/Monitor_data_MI.csv"
+        regrow_concatenated_table = expand("data/Regrow/Monitor_data_{state}.csv", state=["OH", "MN_WI_IA_IN_IL", "MI"])
     output:
         regrow_wide_OH_MN_WI_IA_IN_IL_MI = "data/edited/Regrow/OH_MN_WI_IA_IN_IL_MI_regrow_wide_coded.parquet"
+    params:
+        input_dir = config["regrow"]["raw_dir"],
+        output_dir = config["regrow"]["edited_output_dir"],
+        states_monitor = config["regrow"]["states_monitor"]
     script:
         "scripts/clean_regrow_table.py"
 
@@ -266,6 +286,9 @@ rule join_regrow_shape_table:
         regrow_fieldID_geometry_gpkg = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.gpkg", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
         regrow_table = expand("data/edited/Regrow/{state}_regrow_table.parquet", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"])
     params:
+        input_geometry_dir = config["regrow"]["raw_dir"],
+        input_table_dir = config["regrow"]["edited_output_dir"],
+        output_dir = config["regrow"]["edited_output_dir"],
         states = ["OH", "MN", "WI", "IA", "IN", "IL", "MI"]
     script:
         "scripts/join_regrow_shape_table.py"
@@ -326,26 +349,28 @@ rule split_csb_shape:
 # Clip and reproject weather raster files
 rule clip_reproject_weather_rasters:
     input:
-        ppt = expand("data/Weather/ppt/prism_ppt_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
-        tmax =  expand("data/Weather/tmax/prism_tmax_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
-        tmin =  expand("data/Weather/tmin/prism_tmin_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
-        tmean =  expand("data/Weather/tmean/prism_tmean_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
-        tdmean =  expand("data/Weather/tdmean/prism_tdmean_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
-        vpdmax =  expand("data/Weather/vpdmax/prism_vpdmax_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
-        vpdmin = expand("data/Weather/vpdmin/prism_vpdmin_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
-        soltotal = expand("data/Weather/soltotal/prism_soltotal_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
-        solslope = expand("data/Weather/solslope/prism_solslope_us_30s_{year}{month}.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)]),
+        ppt = expand("data/Weather/ppt/prism_ppt_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
+        tmax =  expand("data/Weather/tmax/prism_tmax_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
+        tmin =  expand("data/Weather/tmin/prism_tmin_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
+        tmean =  expand("data/Weather/tmean/prism_tmean_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
+        tdmean =  expand("data/Weather/tdmean/prism_tdmean_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
+        vpdmax =  expand("data/Weather/vpdmax/prism_vpdmax_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
+        vpdmin = expand("data/Weather/vpdmin/prism_vpdmin_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
+        soltotal = expand("data/Weather/soltotal/prism_soltotal_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
+        solslope = expand("data/Weather/solslope/prism_solslope_us_30s_{year}{month}.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)]),
         states = "data/Census/state_bound/cb_2023_us_state_500k.shp"
     output:
-        ppt_clipped = expand("data/edited/Weather/ppt/{state}_prism_ppt_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
-        tdmean_clipped =  expand("data/edited/Weather/tdmean/{state}_prism_tdmean_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
-        tmax_clipped =  expand("data/edited/Weather/tmax/{state}_prism_tmax_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
-        tmin_clipped =  expand("data/edited/Weather/tmin/{state}_prism_tmin_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
-        tmean_clipped =  expand("data/edited/Weather/tmean/{state}_prism_tmean_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
-        vpdmax_clipped =  expand("data/edited/Weather/vpdmax/{state}_prism_vpdmax_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
-        vpdmin_clipped = expand("data/edited/Weather/vpdmin/{state}_prism_vpdmin_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"])
+        ppt_clipped = expand("data/edited/Weather/ppt/{state}_prism_ppt_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        tdmean_clipped =  expand("data/edited/Weather/tdmean/{state}_prism_tdmean_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        tmax_clipped =  expand("data/edited/Weather/tmax/{state}_prism_tmax_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        tmin_clipped =  expand("data/edited/Weather/tmin/{state}_prism_tmin_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        tmean_clipped =  expand("data/edited/Weather/tmean/{state}_prism_tmean_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        vpdmax_clipped =  expand("data/edited/Weather/vpdmax/{state}_prism_vpdmax_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        vpdmin_clipped = expand("data/edited/Weather/vpdmin/{state}_prism_vpdmin_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        soltotal_clipped = expand("data/edited/Weather/soltotal/{state}_prism_soltotal_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        solslope_clipped = expand("data/edited/Weather/solslope/{state}_prism_solslope_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"])
     params:
-        states = ['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI'],
+        states = config["weather"]["states"],
         weather_variables = config["weather"]["weather_variables"]
     script:
         "scripts/clip_reproject_weather_rasters.py"
@@ -361,6 +386,38 @@ rule clip_gSSURGO_rasters:
         states = ['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']
     script:
         "scripts/clip_gSSURGO_rasters.py"
+
+# Rasterize Regrow to gSSURGO mukey raster format
+rule rasterize_regrow_to_gSSURGO_grid:
+    input:
+        mukey_clipped = expand("data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        regrow_geometry = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"])
+    output:
+        regrow_raster_to_gSSURGO_grid = expand("data/edited/Regrow/{state}_regrow_raster_to_gSSURGO_grid.tif", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        regrow_duplicating_fields = expand("data/edited/Regrow/{state}_regrow_duplicating_fields.parquet", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"])
+    params:
+        states = config["soil"]["states"],
+        regrow_input_dir = config["regrow"]["edited_output_dir"],
+        regrow_output_dir = config["regrow"]["edited_output_dir"],
+        soil_output_dir = config["soil"]["edited_output_dir"]
+    script:
+        "scripts/rasterize_regrow_to_gSSURGO_grid.py"
+
+# Rasterize CSB to gSSURGO mukey raster format
+rule rasterize_CSB_to_gSSURGO_grid:
+    input:
+        mukey_clipped = expand("data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        csb1724_geometry = expand("data/edited/CSB/{state}_CSB1724_CSBID_geometry.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI'])
+    output:
+        CSB_raster_to_gSSURGO_grid = expand("data/edited/CSB/{state}_CSB1724_raster_to_gSSURGO_grid.tif", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        CSB_duplicating_fields = expand("data/edited/CSB/{state}_CSB1724_duplicating_fields.parquet", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"])
+    params:
+        states = config["soil"]["states"],
+        CSB_input_dir = config["csb"]["edited_output_dir"],
+        CSB_output_dir = config["csb"]["edited_output_dir"],
+        soil_output_dir = config["soil"]["edited_output_dir"]
+    script:
+        "scripts/rasterize_CSB_to_gSSURGO_grid.py"
 
 
 
@@ -551,39 +608,47 @@ rule join_csb_supplement_5:
 #---# Supplementary data 6: weather data 
 rule join_regrow_supplement_6:
     input:
-        regrow_joined_shape = expand("data/edited/Regrow/{state}_regrow_shape_table.geojson", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']),
-        ppt_clipped = expand("data/edited/Weather/ppt/{state}_prism_ppt_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "IN", "MI"]),
-        tdmean_clipped =  expand("data/edited/Weather/tdmean/{state}_prism_tdmean_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "IN", "MI"]),
-        tmax_clipped =  expand("data/edited/Weather/tmax/{state}_prism_tmax_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "IN", "MI"]),
-        tmin_clipped =  expand("data/edited/Weather/tmin/{state}_prism_tmin_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "IN", "MI"]),
-        tmean_clipped =  expand("data/edited/Weather/tmean/{state}_prism_tmean_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "IN", "MI"]),
-        vpdmax_clipped =  expand("data/edited/Weather/vpdmax/{state}_prism_vpdmax_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "IN", "MI"]),
-        vpdmin_clipped = expand("data/edited/Weather/vpdmin/{state}_prism_vpdmin_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "IN", "MI"])
+        regrow_shape = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']),
+        #ppt_clipped = expand("data/edited/Weather/ppt/{state}_prism_ppt_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        #tdmean_clipped =  expand("data/edited/Weather/tdmean/{state}_prism_tdmean_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        #tmax_clipped =  expand("data/edited/Weather/tmax/{state}_prism_tmax_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        #tmin_clipped =  expand("data/edited/Weather/tmin/{state}_prism_tmin_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        #tmean_clipped =  expand("data/edited/Weather/tmean/{state}_prism_tmean_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        #vpdmax_clipped =  expand("data/edited/Weather/vpdmax/{state}_prism_vpdmax_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        #vpdmin_clipped = expand("data/edited/Weather/vpdmin/{state}_prism_vpdmin_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        #soltotal_clipped = expand("data/edited/Weather/soltotal/{state}_prism_soltotal_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        #solslope_clipped = expand("data/edited/Weather/solslope/{state}_prism_solslope_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"])
     output:
         #regrow_supplement_6_shape = expand("data/edited/Regrow/{state}_regrow_supplement_6_spatial.geojson", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']),
-        regrow_supplement_6_table = expand("data/edited/Regrow/{state}_regrow_supplement_6_table.csv", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI'])
+        regrow_supplement_6_table = expand("data/edited/Regrow/{state}_regrow_supplement_6_table.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI'])
     params:
         states = config["weather"]["states"],
-        weather_variables = config["weather"]["weather_variables"]
+        weather_variables = config["weather"]["weather_variables"],
+        regrow_input_dir = config["regrow"]["edited_output_dir"],
+        regrow_output_dir = config["regrow"]["edited_output_dir"]
     script:
         "scripts/join_regrow_supplement_6.py"
 
 rule join_csb_supplement_6:
     input:
-        csb1724_shape = expand("data/edited/CSB/{state}_CSB1724_clipped.gpkg", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']),
-        ppt_clipped = expand("data/edited/Weather/ppt/{state}_prism_ppt_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "IN", "MI"]),
-        tdmean_clipped =  expand("data/edited/Weather/tdmean/{state}_prism_tdmean_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "IN", "MI"]),
-        tmax_clipped =  expand("data/edited/Weather/tmax/{state}_prism_tmax_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "IN", "MI"]),
-        tmin_clipped =  expand("data/edited/Weather/tmin/{state}_prism_tmin_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "IN", "MI"]),
-        tmean_clipped =  expand("data/edited/Weather/tmean/{state}_prism_tmean_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "IN", "MI"]),
-        vpdmax_clipped =  expand("data/edited/Weather/vpdmax/{state}_prism_vpdmax_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "IN", "MI"]),
-        vpdmin_clipped = expand("data/edited/Weather/vpdmin/{state}_prism_vpdmin_us_30s_{year}{month}_clipped.tif", year=range(2014, 2025), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "IN", "MI"])
+        csb1724_shape = expand("data/edited/CSB/{state}_CSB1724_CSBID_geometry.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']),
+        ppt_clipped = expand("data/edited/Weather/ppt/{state}_prism_ppt_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        tdmean_clipped =  expand("data/edited/Weather/tdmean/{state}_prism_tdmean_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        tmax_clipped =  expand("data/edited/Weather/tmax/{state}_prism_tmax_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        tmin_clipped =  expand("data/edited/Weather/tmin/{state}_prism_tmin_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        tmean_clipped =  expand("data/edited/Weather/tmean/{state}_prism_tmean_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        vpdmax_clipped =  expand("data/edited/Weather/vpdmax/{state}_prism_vpdmax_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        vpdmin_clipped = expand("data/edited/Weather/vpdmin/{state}_prism_vpdmin_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        soltotal_clipped = expand("data/edited/Weather/soltotal/{state}_prism_soltotal_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        solslope_clipped = expand("data/edited/Weather/solslope/{state}_prism_solslope_us_30s_{year}{month}_clipped.tif", year=range(2014, 2026), month=[f"{m:02d}" for m in range(1, 13)], state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"])
     output:
         #csb1724_supplement_6_shape = expand("data/edited/CSB/{state}_CSB1724_supplement_6_spatial.geojson", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']),
-        csb1724_supplement_6_table = expand("data/edited/CSB/{state}_CSB1724_supplement_6_table.csv", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']),
+        csb1724_supplement_6_table = expand("data/edited/CSB/{state}_CSB1724_supplement_6_table.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI'])
     params:
         states = config["weather"]["states"],
-        weather_variables = config["weather"]["weather_variables"]
+        weather_variables = config["weather"]["weather_variables"],
+        CSB_input_dir = config["csb"]["edited_output_dir"],
+        CSB_output_dir = config["csb"]["edited_output_dir"]
     script:
         "scripts/join_csb_supplement_6.py"
 
@@ -631,27 +696,35 @@ rule convert_csv_to_parquet:
 rule join_regrow_supplement_8:
     input:
         regrow_geometry = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']),
-        mukey_clipped = expand("data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif", state=["OH", "IN", "MI", "IA", "IL", "WI", "MN"]),
+        regrow_raster_to_gSSURGO_grid = expand("data/edited/Regrow/{state}_regrow_raster_to_gSSURGO_grid.tif", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        regrow_duplicating_fields = expand("data/edited/Regrow/{state}_regrow_duplicating_fields.parquet", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
         gSSURGO_tabular = expand("data/gSSURGO/gSSURGO_{state}/gSSURGO_{state}.gdb", state=["OH", "IN", "MI", "IA", "IL", "WI", "MN"])
     output:
         #regrow_supplement_8_shape = expand("data/edited/Regrow/{state}_regrow_supplement_8_spatial.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']),
         regrow_supplement_8_table = expand("data/edited/Regrow/{state}_regrow_supplement_8_table.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI'])
     params:
         states = config["soil"]["states"],
-        soil_depth_cm = config["soil"]["soil_depth_cm"]
+        soil_depth_cm = config["soil"]["soil_depth_cm"],
+        regrow_input_dir = config["regrow"]["edited_output_dir"],
+        regrow_output_dir = config["regrow"]["edited_output_dir"],
+        soil_output_dir = config["soil"]["edited_output_dir"]
     script:
         "scripts/join_regrow_supplement_8.py"
 
 rule join_csb_supplement_8:
     input:
         csb1724_geometry = expand("data/edited/CSB/{state}_CSB1724_CSBID_geometry.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']),
-        mukey_clipped = expand("data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif", state=["OH", "IN", "MI", "IA", "IL", "WI", "MN"]),
+        CSB_raster_to_gSSURGO_grid = expand("data/edited/CSB/{state}_CSB1724_raster_to_gSSURGO_grid.tif", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
+        CSB_duplicating_fields = expand("data/edited/CSB/{state}_CSB1724_duplicating_fields.parquet", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),
         gSSURGO_tabular = expand("data/gSSURGO/gSSURGO_{state}/gSSURGO_{state}.gdb", state=["OH", "IN", "MI", "IA", "IL", "WI", "MN"])
     output:
         #csb1724_supplement_8_shape = expand("data/edited/CSB/{state}_CSB1724_supplement_8_spatial.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']),
         csb1724_supplement_8_table = expand("data/edited/CSB/{state}_CSB1724_supplement_8_table.parquet", state=['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI'])
     params:
         states = config["soil"]["states"],
-        soil_depth_cm = config["soil"]["soil_depth_cm"]
+        soil_depth_cm = config["soil"]["soil_depth_cm"],
+        CSB_input_dir = config["csb"]["edited_output_dir"],
+        CSB_output_dir = config["csb"]["edited_output_dir"],
+        soil_output_dir = config["soil"]["edited_output_dir"]
     script:
         "scripts/join_csb_supplement_8.py"

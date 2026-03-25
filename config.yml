@@ -1,13 +1,22 @@
-# Config for downloading files only.
+# Config file
+
+regrow:
+  raw_2014_2024_dir: "data/Regrow/2014-2024"
+  raw_2025_dir: "data/Regrow/2025"
+  raw_dir: "data/Regrow"
+  edited_output_dir: "data/edited/Regrow"
+  states: ['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']
+  states_monitor: ["OH", "MN_WI_IA_IN_IL", "MI"]
 
 csb: # adjust year in Snakefile.
   base_html: "https://www.nass.usda.gov/Research_and_Science/Crop-Sequence-Boundaries/datasets"
   raw_dir: "data/CSB"
   output_dir: "data/CSB"
+  edited_output_dir: "data/edited/CSB"
 
 cdl:
   base_html: "https://www.nass.usda.gov/Research_and_Science/Cropland/Release/datasets"
-  year: [2014, 2025] #2014-2024
+  year: [2014, 2026] #2014-2025
   raw_dir: "data/CDL"
   output_dir: "data/CDL"
 
@@ -49,10 +58,12 @@ watershed:
 weather:
   base_html: "https://data.prism.oregonstate.edu/time_series/us/an/800m"
   weather_variables: ["ppt", "tmax", "tmin", "tmean", "tdmean", "vpdmax", "vpdmin", "soltotal", "solslope"]
-  states: ['IN', 'IL', 'MN', 'IA', 'OH', 'WI', 'MI']
-  year: [2014, 2025] #2014-2024
+  states: ['IN', 'OH', 'MI', 'IL', 'MN', 'IA', 'WI']
+  year: [2014, 2026] #2014-2025
   raw_dir: "data/Weather/raw"
   output_dir: "data/Weather"
+  regrow_input_dir: "data/edited/Regrow"
+  regrow_output_dir: "data/edited/Regrow"
 
 price:
   N_nearest: 5
@@ -66,3 +77,4 @@ soil:
   soil_depth_cm: 30
   raw_dir: "data/gSSURGO"
   output_dir: "data/gSSURGO"
+  edited_output_dir: "data/edited/Soil"

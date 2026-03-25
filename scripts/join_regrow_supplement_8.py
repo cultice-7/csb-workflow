@@ -5,12 +5,12 @@ import rasterio
 from rasterio.features import rasterize
 import os
 from pathlib import Path
-
+import pickle
 
 # Input and output folders for Regrow
-input_folder_Regrow = "data/edited/Regrow/"
-output_folder_Regrow = "data/edited/Regrow/"
-output_folder_soil = "data/edited/Soil/"
+input_folder_Regrow = snakemake.params.regrow_input_dir
+output_folder_Regrow = snakemake.params.regrow_output_dir
+output_folder_soil = snakemake.params.soil_output_dir
 
 # Pull list of states for running the code
 states = snakemake.params.states
@@ -19,13 +19,15 @@ soil_depth_cm = snakemake.params.soil_depth_cm
 
 for state in states:
     
-    input_path_Regrow = os.path.join(input_folder_Regrow, f"{state}_regrow_fieldID_geometry.parquet")
+    input_path_Regrow_geometry = os.path.join(input_folder_Regrow, f"{state}_regrow_fieldID_geometry.parquet")
+    input_path_Regrow_raster = os.path.join(input_folder_Regrow, f"{state}_regrow_raster_to_gSSURGO_grid.tif")
+    input_path_duplicating_fields = os.path.join(input_folder_Regrow, f"{state}_regrow_duplicating_fields.parquet")
     output_path_spatial = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_8_spatial.parquet")
     output_path_table = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_8_table.parquet")
     output_path_integrated_soil = os.path.join(output_folder_soil, f"{state}_integrated_soil_variables.parquet")
     
     # Load regrow_dises joined datasets
-    regrow_geometry = gpd.read_parquet(input_path_Regrow)
+    regrow_geometry = gpd.read_parquet(input_path_Regrow_geometry)
     
     # Reproject geometry to the same CRS (NAD83/CONUS Albers)
     regrow_geometry = regrow_geometry.to_crs(epsg=5070)
@@ -36,39 +38,7 @@ for state in states:
     
     
     ### Clean Regrow: Regrow geometries contain overlaps which harms rasterization, we need to remove overlaps ###
-    gdf = regrow_geometry.copy()
-    gdf["geometry"] = gdf["geometry"].buffer(0)
-    gdf["area"] = gdf.geometry.area
-
-    # Overlay Regrow on itself. This will produce all overlapping polygons (including boundaries)
-    regrow_overlaps = gpd.overlay(gdf, gdf, how="intersection")
-
-    # Remove self-overlaps
-    regrow_overlaps = regrow_overlaps[regrow_overlaps["field_id_1"] != regrow_overlaps["field_id_2"]]
-
-    # Compute overlap ratio
-    # Determine the smaller area in each pair
-    regrow_overlaps["min_area"] = regrow_overlaps[["area_1", "area_2"]].min(axis=1)
-
-    # Compute overlap fraction relative to smaller polygon
-    regrow_overlaps["overlap_fraction"] = regrow_overlaps.geometry.area / regrow_overlaps["min_area"]
-
-    # Keep only those with overlap >= 50%
-    regrow_overlaps = regrow_overlaps[regrow_overlaps["overlap_fraction"] >= 0.5]
-
-    # Keep only unique pairs (A,B) same as (B,A)
-    # Make a tuple of (smaller_area_parcel, larger_area_parcel)
-    regrow_overlaps["pair"] = regrow_overlaps.apply(
-        lambda row: (row["field_id_1"], row["field_id_2"]) if row["area_1"] <= row["area_2"] else (row["field_id_2"], row["field_id_1"]), axis=1)
-    # Drop duplicates
-    regrow_overlaps = regrow_overlaps.drop_duplicates(subset="pair").reset_index(drop=True)
-    # Assign smaller field IDs in each pair to field_id_1 column and larger field IDs to field_id_2
-    regrow_overlaps.loc[:, 'field_id_1'] = regrow_overlaps["pair"].apply(lambda x: x[0] if pd.notna(x) else None)
-    regrow_overlaps.loc[:, 'field_id_2'] = regrow_overlaps["pair"].apply(lambda x: x[1] if pd.notna(x) else None)
-    # Rename field_id_1 and field_id_2 accordingly
-    regrow_overlaps.rename(columns={"field_id_1": "field_id_smaller", "field_id_2": "field_id_larger"}, inplace = True)
-    # Keep only necessary columns
-    regrow_overlaps = regrow_overlaps[['field_id_smaller', 'field_id_larger', 'overlap_fraction']]
+    regrow_overlaps = pd.read_parquet(input_path_duplicating_fields)
     
     # Clean regrow fields to remove overlapping fields
     # Extract all smaller parcel IDs from the pairs
@@ -85,35 +55,21 @@ for state in states:
     reverse_id_map = {v: k for k, v in id_map.items()} 
     regrow_geometry["pid"] = regrow_geometry["field_id"].map(id_map)
 
-    # Open raster
-    with rasterio.open(f"data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif") as src:
-        # Match CRS between vector Regrow and gSSURGO raster
-        regrow_geometry = regrow_geometry.to_crs(src.crs)
+    # Open gSSURGO mukey raster
+    with rasterio.open(f"data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif") as src_gSSURGO:
+        # Read gSSURGO mukey raster
+        mukey_raster = src_gSSURGO.read(1)
 
-        # Read gSSURGO raster file
-        band = src.read(1)
-        transform = src.transform
-        height = src.height
-        width = src.width
-
-        # Rasterize fields: assign unique field integers to pixels whose centers lie inside a given polygon
-        shapes = ((geom, pid) for geom, pid in zip(regrow_geometry.geometry, regrow_geometry.pid))
-        
-        parcel_raster = rasterize(
-            shapes=shapes,
-            out_shape=(height, width),
-            transform=transform,
-            fill=-1,            # pixels not belonging to any parcel
-            all_touched=False,  # only pixels whose center is inside polygon
-            dtype="int32",
-            skip_invalid = False
-        )
+    # Open rasterized Regrow
+    with rasterio.open(input_path_Regrow_raster) as src_regrow:
+        # Read rasterized Regrow
+        regrow_raster = src_regrow.read(1)
 
     # Extract pixel values for each field
     # Indices of all pixels that belong to some field
-    rows, cols = np.where(parcel_raster >= 0)
-    parcel_ids = parcel_raster[rows, cols]
-    values = band[rows, cols].astype(str)
+    rows, cols = np.where(regrow_raster >= 0)
+    parcel_ids = regrow_raster[rows, cols]
+    values = mukey_raster[rows, cols].astype(str)
 
     # Build dictionary of field_id → pixel values
     fieldID_mukeys = {field_id: [] for field_id in regrow_geometry.field_id}
@@ -121,7 +77,7 @@ for state in states:
         fieldID_mukeys[reverse_id_map[pid]].append(val)
         
     # Find and print fields with no pixels assigned
-    print("Regrow fields with no pixels assigned \n")
+    print(f"Regrow fields in {state} with no pixels assigned")
     for k, v in fieldID_mukeys.items():
         if len(v) == 0:
             print(k, v)
@@ -148,7 +104,7 @@ for state in states:
 
     # Load a layer "chorizon" and keep specific columns from the list of soil variables
     chorizon = gpd.read_file(gdb_path, layer="chorizon")
-    chorizon = chorizon[['cokey', 'hzdept_r', 'hzdepb_r', 'sandtotal_r', 'claytotal_r', 'ph1to1h2o_r']]
+    chorizon = chorizon[['cokey', 'hzdept_r', 'hzdepb_r', 'sandtotal_r', 'claytotal_r', 'ph1to1h2o_r', 'om_r']]
     # Drop any duplicates from the shrinked chorizon dataset
     chorizon.drop_duplicates(inplace=True)
 
@@ -290,7 +246,8 @@ for state in states:
         .apply(lambda x: pd.Series({
             "claytotal_r_30cm": horizon_weighted_30(x, "claytotal_r"),
             "sandtotal_r_30cm": horizon_weighted_30(x, "sandtotal_r"),
-            "ph1to1h2o_r_30cm": horizon_weighted_30(x, "ph1to1h2o_r")
+            "ph1to1h2o_r_30cm": horizon_weighted_30(x, "ph1to1h2o_r"),
+            "om_r_30cm": horizon_weighted_30(x, "om_r")
         }))
         .reset_index())
     
@@ -314,7 +271,8 @@ for state in states:
         .apply(lambda x: pd.Series({
             "claytotal_r_30cm_weighted": component_weighted_mean(x, "claytotal_r_30cm"),
             "sandtotal_r_30cm_weighted": component_weighted_mean(x, "sandtotal_r_30cm"),
-            "ph1to1h2o_r_30cm_weighted": component_weighted_mean(x, "ph1to1h2o_r_30cm")
+            "ph1to1h2o_r_30cm_weighted": component_weighted_mean(x, "ph1to1h2o_r_30cm"),
+            "om_r_30cm_weighted": component_weighted_mean(x, "om_r_30cm")
         }))
         .reset_index()
     )

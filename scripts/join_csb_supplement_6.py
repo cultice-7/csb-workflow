@@ -7,20 +7,20 @@ from rasterstats import zonal_stats
 
 
 # Input and output folders for CSB and road
-input_folder_CSB = "data/edited/CSB/"
-output_folder_CSB = "data/edited/CSB/"
+input_folder_CSB = snakemake.params.CSB_input_dir
+output_folder_CSB = snakemake.params.CSB_output_dir
 
 states = snakemake.params.states
 weather_variables = snakemake.params.weather_variables
 
 for state in states:
     
-    input_path_CSB = os.path.join(input_folder_CSB, f"{state}_CSB1724_clipped.gpkg")
+    input_path_CSB = os.path.join(input_folder_CSB, f"{state}_CSB1724_CSBID_geometry.parquet")
     output_path_geojson = os.path.join(output_folder_CSB, f"{state}_CSB1724_supplement_6_spatial.geojson")
-    output_path_csv = os.path.join(output_folder_CSB, f"{state}_CSB1724_supplement_6_table.csv")
+    output_path_table = os.path.join(output_folder_CSB, f"{state}_CSB1724_supplement_6_table.parquet")
 
     # Load CSB_shape datasets
-    CSB_shape = gpd.read_file(input_path_CSB)
+    CSB_shape = gpd.read_parquet(input_path_CSB)
     
     # Reproject geometry to the same CRS (NAD83/CONUS Albers)
     CSB_shape = CSB_shape.to_crs(epsg=5070)
@@ -53,7 +53,7 @@ for state in states:
             
         CSB_shape = CSB_shape.join(pd.DataFrame(new_cols, index=CSB_shape.index))
 
-    #---# Save geojson and csv files
+    #---# Save geojson and parquet files
     #CSB_shape.to_file(output_path_geojson, driver="GeoJSON")
     attribute_table = CSB_shape.drop(columns='geometry')
-    attribute_table.to_csv(output_path_csv, index=False)
+    attribute_table.to_parquet(output_path_table, compression="zstd")

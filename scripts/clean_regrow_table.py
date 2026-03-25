@@ -2,13 +2,14 @@ import pandas as pd
 import os
 import numpy as np
 
-# Loop through each monitor file and process it
-input_folder = "data/Regrow/"
-output_folder = "data/edited/Regrow/"
+# Regrow directories
+input_folder = snakemake.params.input_dir
+output_folder = snakemake.params.output_dir
 
-states = ["OH", "MN_WI_IA_IN_IL", "MI"]
+# List of states for monitor data
+states_monitor = snakemake.params.states_monitor
 
-for state in states:
+for state in states_monitor:
     input_path = os.path.join(input_folder, f"Monitor_data_{state}.csv")
     df_input = pd.read_csv(input_path)
     try:
@@ -119,7 +120,7 @@ df_processed = df_duplicates.groupby(key_cols).apply(aggregate_group).reset_inde
 df = pd.concat([df_non_duplicates, df_processed], ignore_index=True)
 
 
-# Extract starting year and month of each cycle
+# Extract starting year of each cycle and compute cycle length
 df['start_year'] = df['cycle_start'].dt.year
 df['end_year'] = df['cycle_end'].dt.year
 df['cycle_length'] = (df['cycle_end'] - df['cycle_start']).dt.days
@@ -196,6 +197,7 @@ tillage_map = {
     "TILLAGE_INTENSITY_NO_TILLAGE_DATA": np.nan
 }
 
+# Replace None with Nan
 df_PHtill_wide[df_PHtill_wide.filter(like='till').columns] = df_PHtill_wide.filter(like='till').replace({None: np.nan})
 df_PHtill_wide.replace(tillage_map, inplace = True)
 # Select columns containing "PHtill_1" or "PHtill_2"
@@ -203,6 +205,7 @@ cols_to_convert = df_PHtill_wide.columns[df_PHtill_wide.columns.str.contains("PH
 # Convert to numeric and then to nullable Int
 df_PHtill_wide[cols_to_convert] = (df_PHtill_wide[cols_to_convert].apply(pd.to_numeric, errors="coerce").astype("Int16"))
 
+# Replace None with Nan
 df_PPtill_wide[df_PPtill_wide.filter(like='till').columns] = df_PPtill_wide.filter(like='till').replace({None: np.nan})
 df_PPtill_wide.replace(tillage_map, inplace = True)
 # Select columns containing "PPtill_1" or "PPtill_2"

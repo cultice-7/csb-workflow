@@ -7,20 +7,20 @@ from rasterstats import zonal_stats
 
 
 # Input and output folders for Regrow
-input_folder_Regrow = "data/edited/Regrow/"
-output_folder_Regrow = "data/edited/Regrow/"
+input_folder_Regrow = snakemake.params.regrow_input_dir
+output_folder_Regrow = snakemake.params.regrow_output_dir
 
 states = snakemake.params.states
 weather_variables = snakemake.params.weather_variables
 
 for state in states:
     
-    input_path_Regrow = os.path.join(input_folder_Regrow, f"{state}_regrow_shape_table.geojson")
+    input_path_Regrow = os.path.join(input_folder_Regrow, f"{state}_regrow_fieldID_geometry.parquet")
     output_path_geojson = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_6_spatial.geojson")
-    output_path_csv = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_6_table.csv")
+    output_path_table = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_6_table.parquet")
     
     # Load regrow_dises joined datasets
-    regrow_shape = gpd.read_file(input_path_Regrow)
+    regrow_shape = gpd.read_parquet(input_path_Regrow)
     
     # Reproject geometry to the same CRS (NAD83/CONUS Albers)
     regrow_shape = regrow_shape.to_crs(epsg=5070)
@@ -53,7 +53,11 @@ for state in states:
             
         regrow_shape = regrow_shape.join(pd.DataFrame(new_cols, index=regrow_shape.index))
 
-    #---# Save geojson and csv files
+    # Convert only float64 columns to float32
+    float64_cols = regrow_shape.select_dtypes(include=["float64"]).columns
+    regrow_shape[float64_cols] = regrow_shape[float64_cols].astype("float32")
+    
+    #---# Save geojson and parquet files
     #regrow_shape.to_file(output_path_geojson, driver="GeoJSON")
     attribute_table = regrow_shape.drop(columns='geometry')
-    attribute_table.to_csv(output_path_csv, index=False)
+    attribute_table.to_parquet(output_path_table, compression="zstd")
