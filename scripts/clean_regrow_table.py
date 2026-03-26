@@ -55,14 +55,14 @@ df[cols_to_convert] = df[cols_to_convert].apply(pd.to_datetime, errors = 'coerce
 # Columns determining duplicate entires
 key_cols = ['boundary_id', 'crop', 'crop_start', 'crop_end', 'crop_conf']
 
-# Activity columns (we aggregate their values to deal with duplicates)
+# Extract pre-plant till, post-harvest till and cover crop columns (we aggregate their values to deal with duplicates)
 activity_cols = ["PPtill", "PHtill", "cover"]
 
-# Date and confidence columns for activities (we aggregate their values to deal with duplicates)
+# Extract corresponding date and confidence columns for activity_cols (we aggregate their values to deal with duplicates)
 numeric_ops = ["start", "end", "conf"]
 numeric_cols = [f"{col}_{op}" for col in activity_cols for op in numeric_ops]
 
-# Cycle_start/end columns (we aggregate their values to deal with duplicates)
+#  Extract corresponding cycle_start/end columns (we aggregate their values to deal with duplicates)
 numeric_cols += ["cycle_start", "cycle_end"]
 
 # Split duplicate vs non-duplicate rows
@@ -70,7 +70,7 @@ dup_mask = df.duplicated(subset=key_cols, keep=False)
 df_duplicates = df[dup_mask].copy()
 df_non_duplicates = df[~dup_mask].copy()
 
-# Function to join activity values based on start/end dates
+# Function to join land management activity values based on start/end dates
 def join_activity(values, start_dates, end_dates):
     """
     - If all start/end dates identical and values identical -> keep value

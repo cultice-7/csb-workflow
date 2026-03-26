@@ -56,3 +56,7 @@ data/
 # Other ignores
 .snakemake/
 .vscode/
+
+# Specific code
+snakemake/join_regrow_supplement_1-3.py
+snakemake/join_csb_supplement_1-3.py

@@ -205,33 +205,6 @@ rule clean_dises_shape:
     script:
         "scripts/clean_dises_shape.py"
 
-# Clean Regrow main crop data table
-rule clean_regrow_main_crop:
-    input:
-        regrow_main_crop_OH = "data/Regrow/OH_main_crop_june24.csv"
-    output:
-        regrow_main_crop_wide_OH = "data/edited/Regrow/OH_main_crop_wide_coded.csv"
-    script:
-        "scripts/clean_regrow_main_crop.py"
-
-# Clean Regrow tillage data table
-rule clean_regrow_tillage:
-    input:
-        regrow_tillage_OH = "data/Regrow/OH_tillage_june24.csv"
-    output:
-        regrow_tillage_wide_OH = "data/edited/Regrow/OH_tillage_wide_coded.csv"
-    script:
-        "scripts/clean_regrow_tillage.py"
-
-# Clean Regrow main crop data table
-rule clean_regrow_cover_crop:
-    input:
-        regrow_cover_crop_OH = "data/Regrow/OH_green_cover_crop_july7.csv"
-    output:
-        regrow_cover_crop_wide_OH = "data/edited/Regrow/OH_cover_crop_wide_coded.csv"
-    script:
-        "scripts/clean_regrow_cover_crop.py"
-
 # Join Regrow Updates (adding 2025 data)
 rule join_regrow_updates:
     input:
@@ -250,18 +223,6 @@ rule join_regrow_updates:
     script:
         "scripts/join_regrow_updates.py"
 
-# Clean Regrow field geojson & Join with attribute tables
-rule clean_regrow_shape:
-    input:
-        regrow_boundary = "data/Regrow/OH_field_boundaries.geojson",
-        regrow_main_crop_table_wide = "data/edited/Regrow/OH_main_crop_wide_coded.csv",
-        regrow_tillage_table_wide = "data/edited/Regrow/OH_tillage_wide_coded.csv",
-        regrow_cover_crop_table_wide = "data/edited/Regrow/OH_cover_crop_wide_coded.csv"
-    output:
-        regrow_shape_clean = "data/edited/Regrow/OH_regrow_clean.geojson"
-    script:
-        "scripts/clean_regrow_shape.py"
-
 # Clean Regrow data table (monitor data)
 rule clean_regrow_table:
     input:
@@ -275,7 +236,7 @@ rule clean_regrow_table:
     script:
         "scripts/clean_regrow_table.py"
 
-# Join Regrow field geojson with attribute tables
+# Join Regrow geometry with attribute tables
 rule join_regrow_shape_table:
     input:
         regrow_boundary = expand("data/Regrow/{state}_field_boundaries.geojson", state=["OH", "MN", "WI", "IA", "IN", "IL", "MI"]),

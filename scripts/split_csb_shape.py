@@ -32,10 +32,12 @@ for year in years:
         # Save regrow shape_table file
         gdf_reproj = gdf_reproj.set_crs(epsg=5070)
         gdf_reproj.to_parquet(output_path_joined, compression="zstd")
+        
         # Keep only field_id and geomtery to create a separate file with field_id as a "key" and geometry only
         gdf_fieldID_geomtery = gdf_reproj[['CSBID', 'geometry']].copy()
         gdf_fieldID_geomtery.to_parquet(output_path_fieldID_geometry_parquet, compression="zstd")
         gdf_fieldID_geomtery.to_file(output_path_fieldID_geometry_gpkg, driver = "GPKG")
+        
         # Create a file without geometry
         attribute_table = gdf_reproj.drop(columns='geometry')
         attribute_table.to_parquet(output_path_table, compression="zstd")
