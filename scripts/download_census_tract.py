@@ -79,6 +79,8 @@ def extract_zip(zip_path: Path, output_dir: Path) -> None:
     # Extract all contents
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(output_dir)
+        
+    zip_path.unlink(missing_ok=True)
 
 
 #---# Main execution for snakemake

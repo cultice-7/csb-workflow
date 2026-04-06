@@ -26,7 +26,7 @@ def download_raw_html(
 
     # ensure parent directory exists
     if not raw_path.parent.exists():
-        raw_path.parent.mkdir()
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
 
     # if file already exists, print a message and delete based on redownload parameter
     if raw_path.exists():
@@ -83,6 +83,8 @@ def extract_zip_to_raw(zip_path: Path, raw_dir: Path) -> None:
     # Extract all contents directly into raw_dir
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(raw_dir)
+    
+    zip_path.unlink(missing_ok=True)
 
 #---# Merge function
 def merge_vectors(shp_files: list[Path], output_path: Path) -> None:
@@ -101,14 +103,14 @@ if __name__ == "__main__":
     html = snakemake.params.html
     raw_dir = Path(snakemake.params.raw_dir)
     output_dir = Path(snakemake.params.output_dir)
-    prefixes = [int(p) for p in snakemake.params.prefixes]
+    state_codes = [int(p) for p in snakemake.params.state_codes]
 
     # download files
     downloaded_files = []
 
-    for prefix in prefixes:
-        prefix_st = str(prefix).zfill(2)
-        url = f"{html}/tl_2023_{prefix_st}_prisecroads.zip"
+    for state_code in state_codes:
+        state_code_st = str(state_code).zfill(2)
+        url = f"{html}/tl_2023_{state_code_st}_prisecroads.zip"
         try:
             zip_path = download_raw_html(url, raw_dir)
             downloaded_files.append(zip_path)
@@ -121,10 +123,10 @@ if __name__ == "__main__":
 
     # collect all shapefiles from raw_dir
     shp_files = list(raw_dir.glob("*.shp"))
-
-    # define output path for merged shapefile
-    merged_output_path = Path(snakemake.output.roads)
+    
+    # Output path
+    output_path = output_dir / "prisecroads.shp"
 
     # merge file and save the merged file in output_dir
-    merge_vectors(shp_files, merged_output_path)
+    merge_vectors(shp_files, output_path)
 

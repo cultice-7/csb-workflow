@@ -25,7 +25,7 @@ def download_raw_html(
 
     # ensure parent directory exists
     if not raw_path.parent.exists():
-        raw_path.parent.mkdir()
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
 
     # if file already exists, print a message and delete based on redownload parameter
     if raw_path.exists():
@@ -123,12 +123,14 @@ def tile_intersects_states(lat, lon, state_bound):
 
 #---# Main execution for snakemake
 if __name__ == "__main__":
+    # Import parameters from Snakemake
     y_range = range(snakemake.params["y_range"][0], snakemake.params["y_range"][1])
     x_range = range(snakemake.params["x_range"][0], snakemake.params["x_range"][1])
     raw_dir = snakemake.params.raw_dir
     output_dir = snakemake.params.output_dir
     html = snakemake.params.html
     states = snakemake.params.states
+    
     
     df_state_bound = gpd.read_file("data/Census/state_bound/cb_2023_us_state_500k.shp")
     df_state_bound = df_state_bound[df_state_bound["STUSPS"].isin(states)]

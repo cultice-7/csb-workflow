@@ -1,35 +1,33 @@
 import geopandas as gpd
 import os
 
+# Import parameters from Snakemake
+regrow_input_folder = snakemake.params.regrow_input_dir
+regrow_output_folder = snakemake.params.regrow_output_dir
+census_tract_input_folder = snakemake.params.census_tract_input_dir
+states = snakemake.params.states
+target_CRS = snakemake.params.target_CRS
+
+
 #---# Load required datasets
-# State and country boundaries
-tract_boundaries = gpd.read_file("data/Census/census_tract/cb_2023_us_tract_500k.shp")
+# Census tract boundaries
+tract_boundaries_input_path = os.path.join(census_tract_input_folder, "cb_2023_us_tract_500k.shp")
+tract_boundaries = gpd.read_file(tract_boundaries_input_path)
 tract_boundaries = tract_boundaries[['STATEFP', 'STUSPS', 'COUNTYFP', 'NAMELSADCO', 'GEOID', 'ALAND', 'AWATER', 'geometry']]
 tract_boundaries.rename(columns={'STATEFP': 'state_id', 'STUSPS': 'state_name', 
                                  'COUNTYFP':'county_id', 'NAMELSADCO': 'county_name', 
                                  'GEOID': 'census_tract_id', 'ALAND':'tract_land_area', 
                                  'AWATER':'tract_water_area'}, inplace=True)
 
-# Input and output folders for Regrow
-input_folder_Regrow = "data/edited/Regrow/"
-output_folder_Regrow = "data/edited/Regrow/"
-
-# List of states
-states = snakemake.params.states
-
-
 for state in states:
     
-    input_path_Regrow = os.path.join(input_folder_Regrow, f"{state}_regrow_shape_table.geojson")
+    regrow_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_fieldID_geometry.parquet")
     
     # Load Regrow data
-    regrow_shape = gpd.read_file(input_path_Regrow)
+    regrow_shape = gpd.read_parquet(regrow_input_path)
 
     # Setting active geometry column
     regrow_shape = regrow_shape.set_geometry('geometry')
-    
-    # Reproject geometry to an equal-area CRS (NAD83/CONUS Albers)
-    regrow_shape = regrow_shape.to_crs(epsg=5070)
     
     # Keep only the columns necessary for the spatial join
     cols_to_keep = ['field_id', 'geometry']
@@ -37,8 +35,8 @@ for state in states:
 
     #---# Add Census data: state, county, tract
     # Set paths to output files
-    output_path_geojson = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_1_spatial.geojson")
-    output_path_csv = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_1_table.csv")
+    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_1_spatial.parquet")
+    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_1_table.parquet")
     try:
         #---# Polygon–polygon intersections (too time-consuming)
         #tract_boundaries = tract_boundaries.to_crs(epsg=5070)
@@ -52,7 +50,7 @@ for state in states:
         
         #---# Centroid point-in-polygon spatial joins (faster tool)
         # Ensure both datasets are in the same projected CRS
-        tract_boundaries = tract_boundaries.to_crs(epsg=5070)
+        tract_boundaries = tract_boundaries.to_crs(target_CRS)
         
         # Compute centroids for fields (faster than polygon intersections)
         parcel_centroids = regrow_shape.copy()
@@ -95,10 +93,14 @@ for state in states:
     cols_to_check = ['field_id', 'state_id', 'county_id', 'census_tract_id']
     if regrow_shape[cols_to_check].isna().any().any():
         print(regrow_shape[regrow_shape[cols_to_check].isna().any(axis=1)])
+        
+    # Convert float64 columns to float32 to save memory
+    float64_cols = regrow_shape.select_dtypes(include=["float64"]).columns
+    regrow_shape[float64_cols] = regrow_shape[float64_cols].astype("float32")
     
-    # Save geojson and csv files
-    regrow_shape.to_file(output_path_geojson, driver="GeoJSON")
+    #---# Save files w/ and w/o geometry
+    #regrow_shape.to_parquet(output_path_spatial, compression="zstd")
     attribute_table = regrow_shape.drop(columns='geometry')
     print(attribute_table.shape) #check df shape
-    attribute_table.to_csv(output_path_csv, index=False)
+    attribute_table.to_parquet(output_path_table, index=False, compression="zstd")
     print(f'Supplementary data 1 for {state} is created and saved')

@@ -1,6 +1,7 @@
 import geopandas as gp
 import pandas as pd
 import os
+from pathlib import Path
 from rasterstats import zonal_stats
 from concurrent.futures import ProcessPoolExecutor
 from shapely.geometry import mapping
@@ -32,26 +33,30 @@ def summarize(gdf, year, filter_cdl=None):
 
 # Define main processing loop
 def main():
+
+    # Import parameters from the Snakemake
+    regrow_input_folder = snakemake.params.regrow_input_dir
+    regrow_output_folder = snakemake.params.regrow_output_dir
+    cdl_input_folder = snakemake.params.cdl_input_dir
+    years_range = snakemake.params.years 
     
-    input_folder = "data/edited/Regrow/"
-    output_folder = "data/edited/Regrow/validation/"
-    os.makedirs("data/edited/Regrow/validation", exist_ok = True)
+    # Create an output directory
+    os.makedirs(Path(regrow_output_folder) / "validation", exist_ok = True)
     
-    states = ["OH", "MN", "WI", "IA", "IN", "IL"]
+    states = snakemake.params.states
     
     for state in states:
     
-        input_path = os.path.join(input_folder, f"{state}_regrow_shape_table.geojson")
-        output_path = os.path.join(output_folder, f"{state}_regrow_with_cdl_validation.geojson")
-        output_path_csv_1 = os.path.join(output_folder, f"{state}_regrow_validity_summary_by_year.csv")
-        output_path_csv_2 = os.path.join(output_folder, f"{state}_regrow_validity_summary_by_year_cdl_1_5.csv")
+        input_path = os.path.join(regrow_input_folder, f"{state}_regrow_shape_table.parquet")
+        output_path = os.path.join(regrow_output_folder, "validation", f"{state}_regrow_with_cdl_validation.parquet")
+        output_path_xlsx_1 = os.path.join(regrow_output_folder, "validation", f"{state}_regrow_validity_summary_by_year.xlsx")
+        output_path_xlsx_2 = os.path.join(regrow_output_folder, "validation", f"{state}_regrow_validity_summary_by_year_cdl_1_5.xlsx")
         
         gdf = gp.read_file(input_path)
-        raster_folder = "data/edited/CDL/"
         summary_all, summary_cdl_1_5 = [], []
 
-        for year in range(2014, 2025):
-            raster_path = os.path.join(raster_folder, f"{year}_30m_cdls_clipped.tif")
+        for year in years_range:
+            raster_path = os.path.join(cdl_input_folder, f"{year}_30m_cdls_clipped.tif")
             if not os.path.exists(raster_path):
                 print(f"Raster not found for year {year}")
                 continue
@@ -69,9 +74,9 @@ def main():
             summary_cdl_1_5.append(summarize(gdf, year, filter_cdl=[1, 5]))
 
         # Save Regrow polygons with validation and summary tables for validation
-        gdf.to_file(output_path, driver="GeoJSON")
-        pd.DataFrame(summary_all).to_csv(output_path_csv_1, index = False)
-        pd.DataFrame(summary_cdl_1_5).to_csv(output_path_csv_2, index = False)
+        gdf.to_parquet(output_path, compression="zstd")
+        pd.DataFrame(summary_all).to_excel(output_path_xlsx_1, index = False)
+        pd.DataFrame(summary_cdl_1_5).to_excel(output_path_xlsx_2, index = False)
         print("Saved GeoJSON and both summary tables for {state}")
 
 if __name__ == "__main__":

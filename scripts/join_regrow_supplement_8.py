@@ -7,30 +7,27 @@ import os
 from pathlib import Path
 import pickle
 
-# Input and output folders for Regrow
-input_folder_Regrow = snakemake.params.regrow_input_dir
-output_folder_Regrow = snakemake.params.regrow_output_dir
-output_folder_soil = snakemake.params.soil_output_dir
-
-# Pull list of states for running the code
+# Import parameters from Snakemake
+regrow_input_folder = snakemake.params.regrow_input_dir
+regrow_output_folder = snakemake.params.regrow_output_dir
+soil_input_folder =snakemake.params.soil_input_dir
+soil_output_folder = snakemake.params.soil_output_dir
+mukey_input_folder = snakemake.params.mukey_input_dir
 states = snakemake.params.states
-# Specify the maximum soil depth (in cm) to be used in variable calculations (weighting)
-soil_depth_cm = snakemake.params.soil_depth_cm
+soil_depth_cm = snakemake.params.soil_depth_cm  # specify the maximum soil depth (in cm) to be used in variable calculations (weighting)
+
 
 for state in states:
     
-    input_path_Regrow_geometry = os.path.join(input_folder_Regrow, f"{state}_regrow_fieldID_geometry.parquet")
-    input_path_Regrow_raster = os.path.join(input_folder_Regrow, f"{state}_regrow_raster_to_gSSURGO_grid.tif")
-    input_path_duplicating_fields = os.path.join(input_folder_Regrow, f"{state}_regrow_duplicating_fields.parquet")
-    output_path_spatial = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_8_spatial.parquet")
-    output_path_table = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_8_table.parquet")
-    output_path_integrated_soil = os.path.join(output_folder_soil, f"{state}_integrated_soil_variables.parquet")
+    regrow_geometry_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_fieldID_geometry.parquet")
+    regrow_raster_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_raster_to_gSSURGO_grid.tif")
+    duplicating_fields_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_duplicating_fields.parquet")
+    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_8_spatial.parquet")
+    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_8_table.parquet")
+    integrated_soil_output_path = os.path.join(soil_output_folder, f"{state}_integrated_soil_variables.parquet")
     
     # Load regrow_dises joined datasets
-    regrow_geometry = gpd.read_parquet(input_path_Regrow_geometry)
-    
-    # Reproject geometry to the same CRS (NAD83/CONUS Albers)
-    regrow_geometry = regrow_geometry.to_crs(epsg=5070)
+    regrow_geometry = gpd.read_parquet(regrow_geometry_input_path)
     
     # Create soil dataset
     regrow_soil = regrow_geometry[['field_id']]
@@ -38,7 +35,7 @@ for state in states:
     
     
     ### Clean Regrow: Regrow geometries contain overlaps which harms rasterization, we need to remove overlaps ###
-    regrow_overlaps = pd.read_parquet(input_path_duplicating_fields)
+    regrow_overlaps = pd.read_parquet(duplicating_fields_input_path)
     
     # Clean regrow fields to remove overlapping fields
     # Extract all smaller parcel IDs from the pairs
@@ -56,12 +53,12 @@ for state in states:
     regrow_geometry["pid"] = regrow_geometry["field_id"].map(id_map)
 
     # Open gSSURGO mukey raster
-    with rasterio.open(f"data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif") as src_gSSURGO:
+    with rasterio.open(f"{mukey_input_folder}/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif") as src_gSSURGO:
         # Read gSSURGO mukey raster
         mukey_raster = src_gSSURGO.read(1)
 
     # Open rasterized Regrow
-    with rasterio.open(input_path_Regrow_raster) as src_regrow:
+    with rasterio.open(regrow_raster_input_path) as src_regrow:
         # Read rasterized Regrow
         regrow_raster = src_regrow.read(1)
 
@@ -88,7 +85,7 @@ for state in states:
     
     ## Uploade tabular datasets and keep specific soil variables
     # Path to gSSURGO dataset for a specific state
-    gdb_path = f"data/gSSURGO/gSSURGO_{state}/gSSURGO_{state}.gdb"
+    gdb_path = f"{soil_input_folder}/gSSURGO_{state}/gSSURGO_{state}.gdb"
 
     # Load a layer "mapunit" and keep specific columns from the list of soil variables
     mapunit = gpd.read_file(gdb_path, layer="mapunit")
@@ -188,7 +185,7 @@ for state in states:
         print(f"WARNING DUPLICATING ROWS: {mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog[mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog.duplicated(subset=['mukey', 'cokey', 'hzdept_r'], keep=False)]}") 
     
     # Save the integrated soil dataset
-    mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog.to_parquet(output_path_integrated_soil, compression="zstd")
+    mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog.to_parquet(integrated_soil_output_path, compression="zstd")
     
     
     ## Creating soil variables (the list of variables is provided by the soil team)
@@ -221,13 +218,13 @@ for state in states:
     # Add variables that need to be weighted by soil layer composition: clay, sand, and pH
     mapunit_component_chorizon_copy = mapunit_component_chorizon.copy()
     
-    # Compute horizon overlap with 0–30 cm
+    # Compute horizon overlap with the set soil layer depth
     mapunit_component_chorizon_copy["overlap"] = np.maximum(
         0,
         np.minimum(mapunit_component_chorizon_copy["hzdepb_r"], bottom) - np.maximum(mapunit_component_chorizon_copy["hzdept_r"], top))
 
     # Function to compute horizon-weighted mean per component (depth-weighted mean for the first 30 cm using horizon thickness overlap)
-    def horizon_weighted_30(x, col):
+    def horizon_weighted_target_depth(x, col):
         vals = pd.to_numeric(x[col], errors="coerce")
         weights = x["overlap"]
 
@@ -241,13 +238,13 @@ for state in states:
         return np.sum(vals * weights) / np.sum(weights)
     
     # Compute component-level values
-    component_weighted_30 = (
+    component_weighted_target_depth = (
         mapunit_component_chorizon_copy.groupby(["mukey", "cokey", "comppct_r"])
         .apply(lambda x: pd.Series({
-            "claytotal_r_30cm": horizon_weighted_30(x, "claytotal_r"),
-            "sandtotal_r_30cm": horizon_weighted_30(x, "sandtotal_r"),
-            "ph1to1h2o_r_30cm": horizon_weighted_30(x, "ph1to1h2o_r"),
-            "om_r_30cm": horizon_weighted_30(x, "om_r")
+            f"claytotal_r_{soil_depth_cm}cm": horizon_weighted_target_depth(x, "claytotal_r"),
+            f"sandtotal_r_{soil_depth_cm}cm": horizon_weighted_target_depth(x, "sandtotal_r"),
+            f"ph1to1h2o_r_{soil_depth_cm}cm": horizon_weighted_target_depth(x, "ph1to1h2o_r"),
+            f"om_r_{soil_depth_cm}cm": horizon_weighted_target_depth(x, "om_r")
         }))
         .reset_index())
     
@@ -267,12 +264,12 @@ for state in states:
     
     # Final mukey-level soil values
     mukey_weighted = (
-        component_weighted_30.groupby("mukey")
+        component_weighted_target_depth.groupby("mukey")
         .apply(lambda x: pd.Series({
-            "claytotal_r_30cm_weighted": component_weighted_mean(x, "claytotal_r_30cm"),
-            "sandtotal_r_30cm_weighted": component_weighted_mean(x, "sandtotal_r_30cm"),
-            "ph1to1h2o_r_30cm_weighted": component_weighted_mean(x, "ph1to1h2o_r_30cm"),
-            "om_r_30cm_weighted": component_weighted_mean(x, "om_r_30cm")
+            f"claytotal_r_{soil_depth_cm}cm_weighted": component_weighted_mean(x, f"claytotal_r_{soil_depth_cm}cm"),
+            f"sandtotal_r_{soil_depth_cm}cm_weighted": component_weighted_mean(x, f"sandtotal_r_{soil_depth_cm}cm"),
+            f"ph1to1h2o_r_{soil_depth_cm}cm_weighted": component_weighted_mean(x, f"ph1to1h2o_r_{soil_depth_cm}cm"),
+            f"om_r_{soil_depth_cm}cm_weighted": component_weighted_mean(x, f"om_r_{soil_depth_cm}cm")
         }))
         .reset_index()
     )

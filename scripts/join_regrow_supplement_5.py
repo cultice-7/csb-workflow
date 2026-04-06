@@ -6,26 +6,28 @@ from shapely.geometry import box
 import os
 import numpy as np
 
-# Input and output folders for Regrow and road
-input_folder_Regrow = "data/edited/Regrow/"
-output_folder_Regrow = "data/edited/Regrow/"
-
+# Import parameters from Snakemake
+regrow_input_folder = snakemake.params.regrow_input_dir
+regrow_output_folder = snakemake.params.regrow_output_dir
 states = snakemake.params.states
+
 
 for state in states:
     
-    input_path_Regrow = os.path.join(input_folder_Regrow, f"{state}_regrow_shape_table.geojson")
-    output_path_geojson = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_5_spatial.geojson")
-    output_path_csv = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_5_table.csv")
+    regrow_shape_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_fieldID_geometry.parquet")
+    regrow_table_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_table.parquet")
+    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_5_spatial.parquet")
+    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_5_table.parquet")
 
-    # Load regrow joined datasets
-    regrow_shape = gpd.read_file(input_path_Regrow)
+    # Load regrow shape and table data
+    regrow_shape = gpd.read_parquet(regrow_shape_input_path)
+    regrow_table = pd.read_parquet(regrow_table_input_path)
     
-    # Reproject geometry to the same CRS (NAD83/CONUS Albers)
-    regrow_shape = regrow_shape.to_crs(epsg=5070)
+    # Create regrow shape_table file by merging regrow_shape and regrow_table
+    regrow_shape_table = regrow_shape.merge(regrow_table, on="field_id", how="left")
     
     # Create regrow_supplement_5 dataset 
-    regrow_supplement_5 = regrow_shape.copy()
+    regrow_supplement_5 = regrow_shape_table.copy()
     # Keep only the columns necessary for the spatial join
     cols_to_keep = ['field_id', 'geometry']
     regrow_supplement_5 = regrow_supplement_5[cols_to_keep]
@@ -34,14 +36,14 @@ for state in states:
     # Adding activities on neighboring fields
     print(f"Adding activities on neighboring fields for {state}...")
     
-    # Keep land management activities from regrow_shape
-    columns_to_keep = [c for c in regrow_shape.columns 
+    # Keep land management activities from regrow_shape_table
+    columns_to_keep = [c for c in regrow_shape_table.columns 
                        if (c =="field_id") or (c == "area_acre") or (c == "geometry") or c.startswith("PHtill_1") or c.startswith("PHtill_2") 
                        or c.startswith("PPtill_1") or c.startswith("PPtill_2") or c.startswith("cover_1") or c.startswith("cover_2") or c.startswith("crop_1") or c.startswith("crop_2")]
-    regrow_shape = regrow_shape[columns_to_keep]
+    regrow_shape_table = regrow_shape_table[columns_to_keep]
 
     # Identify neighboring fields
-    neighbor_gdf = gpd.sjoin(regrow_shape, regrow_shape, how="left", predicate="intersects", lsuffix="self", rsuffix="nbr")
+    neighbor_gdf = gpd.sjoin(regrow_shape_table, regrow_shape_table, how="left", predicate="intersects", lsuffix="self", rsuffix="nbr")
     
     # Remove self-matches (each field intersects with itself)
     neighbor_gdf = neighbor_gdf[neighbor_gdf["field_id_self"] != neighbor_gdf["field_id_nbr"]]
@@ -125,10 +127,14 @@ for state in states:
     regrow_supplement_5 = regrow_supplement_5.drop(columns=['field_id_self_x', 'field_id_self_y'])
     
     print(f"Adding activities on neighboring fields for {state} is complete.")
+    
+    # Convert float64 columns to float32 to save memory
+    float64_cols = regrow_supplement_5.select_dtypes(include=["float64"]).columns
+    regrow_supplement_5[float64_cols] = regrow_supplement_5[float64_cols].astype("float32")
 
-    #---# Save geojson and csv files
-    #regrow_supplement_5.to_file(output_path_geojson, driver="GeoJSON")
+    #---# Save files w/ and w/o geometry
+    #regrow_supplement_5.to_parquet(output_path_spatial, compression="zstd")
     attribute_table = regrow_supplement_5.drop(columns='geometry')
-    attribute_table.to_csv(output_path_csv, index = False)
+    attribute_table.to_parquet(output_path_table, index = False, compression="zstd")
     
     

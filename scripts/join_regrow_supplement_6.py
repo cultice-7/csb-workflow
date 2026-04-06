@@ -5,25 +5,22 @@ import os
 from pathlib import Path
 from rasterstats import zonal_stats
 
-
-# Input and output folders for Regrow
-input_folder_Regrow = snakemake.params.regrow_input_dir
-output_folder_Regrow = snakemake.params.regrow_output_dir
-
+# Import parameters from Snakemake
+regrow_input_folder = snakemake.params.regrow_input_dir
+regrow_output_folder = snakemake.params.regrow_output_dir
+weather_input_folder = snakemake.params.weather_input_dir
 states = snakemake.params.states
 weather_variables = snakemake.params.weather_variables
 
+
 for state in states:
     
-    input_path_Regrow = os.path.join(input_folder_Regrow, f"{state}_regrow_fieldID_geometry.parquet")
-    output_path_geojson = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_6_spatial.geojson")
-    output_path_table = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_6_table.parquet")
+    regrow_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_fieldID_geometry.parquet")
+    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_6_spatial.parquet")
+    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_6_table.parquet")
     
     # Load regrow_dises joined datasets
-    regrow_shape = gpd.read_parquet(input_path_Regrow)
-    
-    # Reproject geometry to the same CRS (NAD83/CONUS Albers)
-    regrow_shape = regrow_shape.to_crs(epsg=5070)
+    regrow_shape = gpd.read_parquet(regrow_input_path)
     
     # Keep only the columns necessary for the spatial join
     cols_to_keep = ['field_id', 'geometry']
@@ -34,7 +31,7 @@ for state in states:
     centroid_coords = [(pt.x, pt.y) for pt in centroids]
     
     for variable in weather_variables:
-        input_dir = Path(f"data/edited/Weather/{variable}")
+        input_dir = Path(weather_input_folder) / f"{variable}"
         weather_files = sorted(input_dir.glob(f"{state}_prism_{variable}_us_30s_*.tif"))
         new_cols = {}
         
@@ -53,11 +50,11 @@ for state in states:
             
         regrow_shape = regrow_shape.join(pd.DataFrame(new_cols, index=regrow_shape.index))
 
-    # Convert only float64 columns to float32
+    # Convert float64 columns to float32 to save memory
     float64_cols = regrow_shape.select_dtypes(include=["float64"]).columns
     regrow_shape[float64_cols] = regrow_shape[float64_cols].astype("float32")
     
-    #---# Save geojson and parquet files
-    #regrow_shape.to_file(output_path_geojson, driver="GeoJSON")
+    #---# Save files w/ and w/o geometry
+    #regrow_shape.to_parquet(output_path_spatial, compression="zstd")
     attribute_table = regrow_shape.drop(columns='geometry')
-    attribute_table.to_parquet(output_path_table, compression="zstd")
+    attribute_table.to_parquet(output_path_table, index = False, compression="zstd")

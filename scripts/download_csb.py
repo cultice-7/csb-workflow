@@ -1,16 +1,10 @@
 # Import packages
-import geopandas as gp
-import pandas as pd
 import requests
 from pathlib import Path
 import zipfile
 import shutil
 import tempfile
 
-#---# Debugging placeholders
-# year = str(2023)
-# year7 = str(2023 - 7)
-# html = f"https://www.nass.usda.gov/Research_and_Science/Crop-Sequence-Boundaries/datasets/NationalCSB_{year7}-{year}_rev23.zip"
 
 #---# Setting up the request to the website
 def download_raw_html(
@@ -28,7 +22,7 @@ def download_raw_html(
 
     # ensure parent directory exists
     if not raw_path.parent.exists():
-        raw_path.parent.mkdir()
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
 
     # if file already exists, print a message and delete based on redownload parameter
     if raw_path.exists():
@@ -79,51 +73,65 @@ def download_raw_html(
         raise RuntimeError("downloaded raw file not within set filesize tolerance; deleting raw file")
 
 #---# Zip file extraction
-def extract_zip_to_temp(zip_path: Path, output_dir: Path) -> None:
+def extract_zip_to_temp(zip_path: Path, output_dir: Path) -> Path:
     temp_extract_dir = Path(tempfile.mkdtemp(dir=output_dir))
 
     # Extract all contents
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(temp_extract_dir)
+        
+    zip_path.unlink(missing_ok=True)
 
-    # Locate the expected folder inside temp_extract
-    extracted_root = next(temp_extract_dir.iterdir())
-
-    if not extracted_root.is_dir():
-        raise FileNotFoundError("Expected extracted folder not found.")
-
-    return extracted_root
+    return temp_extract_dir
 
 #---# Move all contents from extracted_root to output_dir
-def move_extracted_contents(extracted_root: Path, output_dir: Path):
-    for item in extracted_root.iterdir():
-        target = Path(output_dir) / item.name
+def move_extracted_contents(temp_extract_dir: Path, output_dir: Path):
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    items = list(temp_extract_dir.iterdir())
+    
+    # If there is a single wrapper folder → unpack it
+    if len(items) == 1 and items[0].is_dir():
+        items = list(items[0].iterdir())
+
+    # Move everything
+    for item in items:
+        target = output_dir / item.name
+
+        # Remove existing target if needed
         if target.exists():
             if target.is_dir():
                 shutil.rmtree(target)
             else:
                 target.unlink()
+
         shutil.move(str(item), str(target))
 
-#---# Main execution for snakemake
+    # Clean up temp directory
+    shutil.rmtree(temp_extract_dir, ignore_errors=True)
+
+#---# Main execution for Snakemake
 if __name__ == "__main__":
 
-    # unpack snakemake
-    html = snakemake.params.html
+    # Import parameters from Snakemake
     raw_dir = snakemake.params.raw_dir
     output_dir = snakemake.params.output_dir
+    base_html = snakemake.params.base_html
+    CSB_years = snakemake.params.CSB_years
+    
+    for CSB_year in CSB_years:
 
-    # send html to download function
-    download_raw_html(html, raw_dir)
+        # Design an html for a specific CSB_year
+        html = f"{base_html}/NationalCSB_20{CSB_year[:2]}-20{CSB_year[2:]}_rev23.zip"
+        
+        # send html to download function
+        download_raw_html(html, Path(raw_dir))
 
-    # define zip path
-    zip_path = Path(raw_dir) / html.split("/")[-1]
+        # define zip path
+        zip_path = Path(raw_dir) / html.split("/")[-1]
 
-    # extract zip to temp
-    extracted_root = extract_zip_to_temp(zip_path, output_dir)
+        # extract zip to temp
+        temp_extract_dir = extract_zip_to_temp(zip_path, Path(output_dir))
 
-    # move contents to output directory
-    move_extracted_contents(extracted_root, output_dir)
-
-    # delete temp folder
-    shutil.rmtree(extracted_root.parent, ignore_errors=True)
+        # move contents to output directory
+        move_extracted_contents(temp_extract_dir, Path(output_dir))

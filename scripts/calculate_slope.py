@@ -1,19 +1,20 @@
 from osgeo import gdal
-import os
+from pathlib import Path
 
 # Input and output paths
-input_dem = "data/Geo/elevation/elevation.tif"
-projected_dem = "data/Geo/elevation/elevation_projected.tif"
-slope_output = "data/Geo/elevation/slope.tif"
+elevation_input = Path("data/Geo/elevation/elevation_reprojected.tif")
+slope_output = Path("data/Geo/slope/slope_reprojected.tif")
 
-# Reproject to an equal-area CRS (NAD83/CONUS Albers EPSG:5070)
-gdal.Warp(projected_dem, input_dem, dstSRS="EPSG:5070", format="GTiff")
+# ensure parent directory exists
+if not slope_output.parent.exists():
+    slope_output.parent.mkdir(parents=True, exist_ok=True)
 
-# Calculate slope in degrees carefully 
-gdal.DEMProcessing(slope_output, projected_dem, "slope", format="GTiff", slopeFormat="degree")
+# Check the CRS of input reprojected elevation file
+elevation_reprojected_tif = gdal.Open(elevation_input)
+crs = elevation_reprojected_tif.GetProjection()
+print("The CRS of the reprojected elevation file is", crs)
 
-if os.path.exists(projected_dem):
-    os.remove(projected_dem)
-    print(f"Deleted intermediate file: {projected_dem}")
+# Calculate slope in degrees
+gdal.DEMProcessing(slope_output, elevation_input, "slope", format="GTiff", slopeFormat="degree")
 
 print(f"Slope raster saved to {slope_output} using Albers Equal Area projection.")

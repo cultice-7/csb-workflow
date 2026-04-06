@@ -79,6 +79,8 @@ def extract_zip_to_raw(zip_path: Path, raw_dir: Path) -> None:
     # Extract contents into the subfolder
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(extract_path)
+    
+    zip_path.unlink(missing_ok=True)
 
 
 #---# Main execution for snakemake
@@ -87,7 +89,7 @@ if __name__ == "__main__":
     # unpack snakemake
     html = snakemake.params.html
     weather_variables = snakemake.params.weather_variables
-    year_range = range(snakemake.params["year_range"][0], snakemake.params["year_range"][1])
+    year_range = snakemake.params.year_range
     
     months = [f"{i:02d}" for i in range(1, 13)]
     # add yearly data
@@ -113,7 +115,6 @@ if __name__ == "__main__":
         # extract zip
         for zip_path in downloaded_files:
             extract_zip_to_raw(zip_path, raw_dir)
-            zip_path.unlink()
         
         # save all tif files to the output_dir
         for tif in raw_dir.rglob("*.tif"):

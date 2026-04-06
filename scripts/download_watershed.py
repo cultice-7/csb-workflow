@@ -80,6 +80,7 @@ def extract_zip_to_raw(zip_path: Path, raw_dir: Path) -> None:
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(extract_path)
 
+    zip_path.unlink(missing_ok=True)
 
 #---# Merge function
 def merge_vectors(shp_files: list[Path], output_path: Path) -> None:

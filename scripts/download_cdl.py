@@ -22,7 +22,7 @@ def download_raw_html(
 
     # ensure parent directory exists
     if not raw_path.parent.exists():
-        raw_path.parent.mkdir()
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
 
     # if file already exists, print a message and delete based on redownload parameter
     if raw_path.exists():
@@ -79,6 +79,8 @@ def extract_zip_to_raw(zip_path: Path, raw_dir: Path) -> None:
     # Extract contents into the subfolder
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(extract_path)
+    
+    zip_path.unlink(missing_ok=True)
 
 
 #---# Main execution for snakemake
@@ -88,12 +90,12 @@ if __name__ == "__main__":
     html = snakemake.params.html
     raw_dir = Path(snakemake.params.raw_dir)
     output_dir = Path(snakemake.params.output_dir)
-    year_range = range(snakemake.params["year_range"][0], snakemake.params["year_range"][1])
+    years_range = snakemake.params.years_range
 
     # download files
     downloaded_files = []
 
-    for year in year_range:
+    for year in years_range:
         year_str = str(year)
         url = f"{html}/{year_str}_30m_cdls.zip"
         try:

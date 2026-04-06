@@ -2,6 +2,7 @@ import geopandas as gpd
 import rasterio
 from rasterio.mask import mask
 from pathlib import Path
+import os
 
 # Function that clip and reproject each raster file
 def clip_raster(
@@ -34,29 +35,38 @@ def clip_raster(
         with rasterio.open(output_path, "w", **out_meta) as dest:
             dest.write(out_image)
 
-
-state_bound = gpd.read_file("data/Census/state_bound/cb_2023_us_state_500k.shp")
+# Main code
+# Import parameters from Snakemake
+state_bound_folder = snakemake.params.state_bound_dir
+soil_input_folder = snakemake.params.soil_input_dir
+soil_output_folder = snakemake.params.soil_output_dir
 states = snakemake.params.states
-input_file_path = Path("data/gSSURGO/FY2026_gSSURGO_mukey_grid\MURASTER_30m.tif")
+target_CRS = snakemake.params.target_CRS
+
+# Read file with state boundaries
+state_bound = gpd.read_file(Path(state_bound_folder) / f"cb_2023_us_state_500k.shp")
+
+# Path to inpurt mukey raster file
+mukey_input_file_path =  os.path.join(soil_input_folder, "FY2026_gSSURGO_mukey_grid/MURASTER_30m.tif")
         
 for state in states:
     
     # Extract state boundaries
     select_state_bound = state_bound[state_bound['STUSPS'] == state]
 
-    # Reproject to the common CRS (5070)
-    select_state_bound = select_state_bound.to_crs(epsg=5070)
+    # Reproject to the the target CRS
+    select_state_bound = select_state_bound.to_crs(target_CRS)
     
     # 3. Create 10 km outward buffer
     state_bound_outer = select_state_bound.buffer(10000)
     
     # Path for output files
-    mukey_raster_output = Path(f"data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif")
+    mukey_raster_output = os.path.join(soil_output_folder, f"gSSURGO Mukey Grid/{state}_MURASTER_30m.tif")
     Path(mukey_raster_output).parent.mkdir(parents=True, exist_ok=True)
     
     # Apply function to clip gSSURGO mukey raster file
     clip_raster(
-        src_tif=input_file_path,
+        src_tif=mukey_input_file_path,
         state_gdf = state_bound_outer,
         output_path=mukey_raster_output)
     

@@ -3,49 +3,60 @@ import pandas as pd
 import numpy as np
 import os
 from shapely import intersection
+from pathlib import Path
 
-# Input and output folders for Regrow
-input_folder_CSB = "data/edited/CSB/"
-output_folder_CSB = "data/edited/CSB/"
-
+# Import parameters from Snakemake
+CSB_input_folder = snakemake.params.CSB_input_dir
+DISES_input_folder = snakemake.params.DISES_input_dir
+CSB_DISES_output_folder = snakemake.params.CSB_DISES_output_dir
 states = snakemake.params.states
-years = snakemake.params.years
+years = snakemake.params.CSB_years
+buffer_margin = snakemake.params.buffer_margin
+area_match_lower_bound = snakemake.params["area_match_coefs"][0]
+area_match_upper_bound = snakemake.params["area_match_coefs"][1]
+target_CRS = snakemake.params.target_CRS
+
 
 # Load DISES data
-dises_shape = gpd.read_file("data/edited/DISES/dises_consolidated.gpkg")
+dises_shape_table = gpd.read_parquet(Path(DISES_input_folder) / "DISES_shape_table.parquet")
 
 # Rename DISES columns for clarity
-dises_shape = dises_shape.add_suffix('_dises')
+dises_shape_table = dises_shape_table.add_suffix('_dises')
 
 for year in years:
     for state in states:
             
-        input_path_csb = os.path.join(input_folder_CSB, f"{state}_CSB{year}_shape_table.parquet")
-        output_path_geospatial = os.path.join(output_folder_CSB, f"{state}_CSB{year}_dises_spatial.parquet")
-        output_path_table = os.path.join(output_folder_CSB, f"{state}_CSB{year}_dises_table.parquet")
+        csb_geometry_input_path = os.path.join(CSB_input_folder, f"{state}_CSB{year}_CSBID_geometry.parquet")
+        csb_table_input_path = os.path.join(CSB_input_folder, f"{state}_CSB{year}_table.parquet")
+        output_path_geospatial = os.path.join(CSB_DISES_output_folder, f"{state}_CSB{year}_dises_spatial.parquet")
+        output_path_table = os.path.join(CSB_DISES_output_folder, f"{state}_CSB{year}_dises_table.parquet")
     
         # Load CSB data
-        csb_clipped = gpd.read_parquet(input_path_csb)
+        csb_shape = gpd.read_parquet(csb_geometry_input_path)
+        csb_table = pd.read_parquet(csb_table_input_path)
+        
+        # Create CSB shape_table file by merging csb_shape and csb_table
+        csb_shape_table = csb_shape.merge(csb_table, on="CSBID", how="left")
         
         # Setting active geometry column
-        csb_clipped = csb_clipped.set_geometry('geometry')
-        dises_shape = dises_shape.set_geometry('geometry_dises')
+        csb_shape_table = csb_shape_table.set_geometry('geometry')
+        dises_shape_table = dises_shape_table.set_geometry('geometry_dises')
 
         # Reproject all to an equal-area CRS (NAD83/CONUS Albers)
-        csb_clipped = csb_clipped.set_crs(epsg=5070)
-        dises_shape = dises_shape.to_crs(epsg=5070)
+        csb_shape_table = csb_shape_table.set_crs(target_CRS)
+        dises_shape_table = dises_shape_table.to_crs(target_CRS)
 
         # Preserve original geometry before buffering
-        csb_clipped['original_geometry'] = csb_clipped.geometry
-        dises_shape['original_geometry_dises'] = dises_shape.geometry
+        csb_shape_table['original_geometry'] = csb_shape_table.geometry
+        dises_shape_table['original_geometry_dises'] = dises_shape_table.geometry
 
         # Create a buffered copy for spatial matching
-        buffered = csb_clipped.copy()
-        buffered['geometry'] = buffered.geometry.buffer(-10)
+        buffered = csb_shape_table.copy()
+        buffered['geometry'] = buffered.geometry.buffer(buffer_margin)
         buffered = buffered[buffered.is_valid & ~buffered.is_empty]
 
         # Perform intersection
-        intersections = gpd.overlay(buffered, dises_shape, how='intersection')
+        intersections = gpd.overlay(buffered, dises_shape_table, how='intersection')
 
         # Calculate overlap area
         intersections['overlap_area_dises'] = intersections.geometry.area / 4046.8564224
@@ -55,7 +66,7 @@ for year in years:
 
         # Merge attributes back to original CSB data
         columns_to_merge = largest_overlap.columns.difference(['geometry'])
-        csb_dises = csb_clipped.merge(largest_overlap[columns_to_merge], on='CSBID', how='left', suffixes=('', '_temp'))
+        csb_dises = csb_shape_table.merge(largest_overlap[columns_to_merge], on='CSBID', how='left', suffixes=('', '_temp'))
 
         # Drop temporary columns
         cols_to_drop = [col for col in csb_dises.columns if col.endswith('_temp')]
@@ -75,12 +86,22 @@ for year in years:
         
         # Restore original geometry
         csb_dises.drop(columns='original_geometry_dises', inplace=True)
-        csb_dises = gpd.GeoDataFrame(csb_dises, geometry=csb_dises['original_geometry'], crs=csb_clipped.crs)
+        csb_dises = gpd.GeoDataFrame(csb_dises, geometry=csb_dises['original_geometry'], crs=csb_shape_table.crs)
         csb_dises.drop(columns='original_geometry', inplace=True)
+        
+        # Crop mapping to match crop categories between CSB and DISES
+        # Define mapping to match "field_crop_23_dises" with CSB crop categories
+        crop_mapping = {
+        1: 1,
+        2: 5,
+        3: np.nan}
+        
+        # Create a temporary column in csb_dises
+        csb_dises["field_crop_23_dises_mapped"] = csb_dises["field_crop_23_dises"].replace(crop_mapping)
 
         # Add field match conditions (1,0, or NaN)
         csb_dises['crop_match_dises'] = np.where(
-            csb_dises['field_crop_23_dises'].isna(),
+            (csb_dises['field_crop_23_dises'].isna()) | (csb_dises['CDL2023'].isna()),
             np.nan,
             (
                 (csb_dises['field_crop_23_dises'] == csb_dises['CDL2023'])
@@ -88,13 +109,16 @@ for year in years:
         )
 
         csb_dises['area_match_dises'] = np.where(
-            csb_dises['field_size_dises'].isna(),
+            (csb_dises['field_size_dises'].isna()) | (csb_dises['CSBACRES'].isna()),
             np.nan,
             (
-                (csb_dises['CSBACRES'] >= 0.75 * csb_dises['field_size_dises']) &
-                (csb_dises['CSBACRES'] <= 1.25 * csb_dises['field_size_dises'])
+                (csb_dises['CSBACRES'] >= area_match_lower_bound * csb_dises['field_size_dises']) &
+                (csb_dises['CSBACRES'] <= area_match_upper_bound * csb_dises['field_size_dises'])
             ).astype(int)
         )
+        
+        # Drop temporary column in regrow_dises
+        csb_dises.drop(columns="field_crop_23_dises_mapped", inplace=True)
 
         # Define match_quality based on crop_match_dises and area_match_dises
         def determine_match_quality(row):

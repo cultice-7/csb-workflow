@@ -1,32 +1,30 @@
 import geopandas as gpd
 import os
+from pathlib import Path
+
+# Import parameters from Snakemake
+regrow_input_folder = snakemake.params.regrow_input_dir
+regrow_output_folder = snakemake.params.regrow_output_dir
+watershed_input_folder = snakemake.params.watershed_input_dir
+states = snakemake.params.states
+target_CRS = snakemake.params.target_CRS
+
 
 #---# Load required datasets
-
 # Watershed data
-subbasin = gpd.read_file("data/Geo/watershed/subbasin.shp")
-watershed = gpd.read_file("data/Geo/watershed/watershed.shp")
-subwatershed = gpd.read_file("data/Geo/watershed/subwatershed.shp")
-
-# Input and output folders for Regrow
-input_folder_Regrow = "data/edited/Regrow/"
-output_folder_Regrow = "data/edited/Regrow/"
-
-# List of states
-states = snakemake.params.states
+subbasin = gpd.read_file(Path(watershed_input_folder) / "subbasin.shp")
+watershed = gpd.read_file(Path(watershed_input_folder) / "watershed.shp")
+subwatershed = gpd.read_file(Path(watershed_input_folder) / "subwatershed.shp")
 
 for state in states:
     
-    input_path_Regrow = os.path.join(input_folder_Regrow, f"{state}_regrow_shape_table.geojson")
+    input_path_Regrow = os.path.join(regrow_input_folder, f"{state}_regrow_fieldID_geometry.parquet")
     
     # Load Regrow data
-    regrow_shape = gpd.read_file(input_path_Regrow)
+    regrow_shape = gpd.read_parquet(input_path_Regrow)
 
     # Setting active geometry column
     regrow_shape = regrow_shape.set_geometry('geometry')
-    
-    # Reproject geometry to an equal-area CRS (NAD83/CONUS Albers)
-    regrow_shape = regrow_shape.to_crs(epsg=5070)
     
     # Keep only the columns necessary for the spatial join
     cols_to_keep = ['field_id', 'geometry']
@@ -35,8 +33,8 @@ for state in states:
 
     #---# Add subbasin, watershed and subwatershed
     # Set paths to output files
-    output_path_geojson = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_3_spatial.geojson")
-    output_path_csv = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_3_table.csv")
+    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_3_spatial.parquet")
+    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_3_table.parquet")
     
     print("Adding hydrography data...")
     # Each hydrological unit has a specific dataset structure, so we process them separately
@@ -65,7 +63,7 @@ for state in states:
         
         try:
             #---# Polygon–polygon intersections (too time-consuming)
-            #df_hu = df_hu.to_crs(epsg=5070) 
+            #df_hu = df_hu.to_crs(target_CRS) 
             #intersections_hydro = gpd.overlay(regrow_shape, df_hu, how='intersection')
             #intersections_hydro['overlap_area_temp'] = intersections_hydro.geometry.area
             #largest_overlap_hydro = intersections_hydro.sort_values('overlap_area_temp', ascending=False).drop_duplicates('field_id')
@@ -76,8 +74,8 @@ for state in states:
             #print("Hydrography data added to attribute table.")
             
             #---# Centroid point-in-polygon spatial joins (faster tool)
-            # Reproject watershed df to EPSG:5070
-            df_hu = df_hu.to_crs(epsg=5070)
+            # Reproject watershed df to target CRS
+            df_hu = df_hu.to_crs(target_CRS)
 
             # Compute centroids for each parcel (much faster than polygon intersections)
             parcel_centroids = regrow_shape.copy()
@@ -86,7 +84,7 @@ for state in states:
             # Spatial join: assign each parcel centroid to its watershed
             joined = gpd.sjoin(parcel_centroids, df_hu, how="left", predicate="within")
 
-            # Select the watershed attribute columns you care about
+            # Select the watershed attribute columns you need to keep
             columns_to_keep = joined.filter(regex="field_id|_id|_name|_type").columns
 
             # Merge watershed attributes back to the original parcels
@@ -105,10 +103,14 @@ for state in states:
     cols_to_check = ['field_id', 'subbasin_id', 'watershed_id', 'subwatershed_id']
     if regrow_shape[cols_to_check].isna().any().any():
         print(regrow_shape[regrow_shape[cols_to_check].isna().any(axis=1)])
-
-    # Save geojson and csv files
-    #regrow_shape.to_file(output_path_geojson, driver="GeoJSON")
+        
+    # Convert float64 columns to float32 to save memory
+    float64_cols = regrow_shape.select_dtypes(include=["float64"]).columns
+    regrow_shape[float64_cols] = regrow_shape[float64_cols].astype("float32")
+    
+    #---# Save files w/ and w/o geometry
+    #regrow_shape.to_parquet(output_path_spatial, compression="zstd")
     attribute_table = regrow_shape.drop(columns='geometry')
     print(attribute_table.shape) #check df shape
-    attribute_table.to_csv(output_path_csv, index=False)
+    attribute_table.to_parquet(output_path_table, index=False, compression="zstd")
     print(f'Supplementary data 3 for {state} is created and saved')

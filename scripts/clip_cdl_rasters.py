@@ -2,24 +2,22 @@ import geopandas as gpd
 import os
 import rasterio
 from rasterio.mask import mask
+from rasterio.windows import from_bounds
+from pathlib import Path
 
-# Filter state boundary file to 3 states (OH, MI, IN)
-state_bound = gpd.read_file("data/Census/state_bound/cb_2023_us_state_500k.shp")
-select_states = state_bound[state_bound['STATEFP'].isin(['17', '18', '19', '26', '27', '39', '55'])]
+# Import parameters from the Snakemake
+state_bound_folder = snakemake.params.state_bound_dir
+states_codes = snakemake.params.states_code
+years_range = snakemake.params.years
+target_CRS = snakemake.params.target_CRS
+cdl_input_folder = snakemake.params.cdl_input_dir
+cdl_output_folder = snakemake.params.cdl_output_dir
 
-# Reproject CRS to match CDL rasters
-select_states = select_states.to_crs(epsg=5070)
 
-# Define input and output folders
-os.makedirs("data/edited/CDL", exist_ok=True)
-
-cdl_folder = "data/CDL/"
-clipped_cdl_folder = "data/edited/CDL/"
-
-# Loop through each year to clip CDL raster
-for year in range(2014, 2025):
-    cdl_path = os.path.join(cdl_folder, f"{year}_30m_cdls", f"{year}_30m_cdls.tif")
-    output_path = os.path.join(clipped_cdl_folder, f"{year}_30m_cdls_clipped.tif")
+def clip_cdl_using_state_boundaries(select_states, year, cdl_input_folder, cdl_output_folder):
+    
+    cdl_path = os.path.join(cdl_input_folder, f"{year}_30m_cdls", f"{year}_30m_cdls.tif")
+    output_path = os.path.join(cdl_output_folder, f"{year}_30m_cdls_clipped.tif")
 
     print(f"Processing {year}...")
 
@@ -43,3 +41,18 @@ for year in range(2014, 2025):
         print(f"File not found: {cdl_path}")
     except Exception as e:
         print(f"Error processing {year}: {e}")
+
+
+# Main script
+state_bound = gpd.read_file(Path(state_bound_folder) / f"cb_2023_us_state_500k.shp")
+select_states = state_bound[state_bound['STATEFP'].isin(states_codes)]
+
+# Reproject CRS to match CDL rasters
+select_states = select_states.to_crs(target_CRS)
+
+# Create an output directory
+os.makedirs(cdl_output_folder, exist_ok=True)
+
+# Loop through each year to clip CDL raster
+for year in years_range:
+    clip_cdl_using_state_boundaries(select_states, year, cdl_input_folder, cdl_output_folder)

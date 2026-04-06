@@ -8,21 +8,28 @@ from pathlib import Path
 import pickle
 
 
-
-# Input and output folders for Regrow
-input_folder_Regrow = snakemake.params.regrow_input_dir
-output_folder_Regrow = snakemake.params.regrow_output_dir
-
-# Pull list of states for running the code
+# Import parameters from Snakemake
+regrow_input_folder = snakemake.params.regrow_input_dir
+soil_input_folder = snakemake.params.soil_input_dir
+regrow_output_folder = snakemake.params.regrow_output_dir
 states = snakemake.params.states
+target_CRS = snakemake.params.target_CRS
 
-def regrow_duplicating_fields_rasterization(state, input_path_Regrow, output_path_raster, output_path_duplicating_fields):
+
+def regrow_duplicating_fields_rasterization(state, target_CRS, regrow_input_folder, soil_input_folder, regrow_output_folder):
     
-    # Load regrow_dises joined datasets
-    regrow_geometry = gpd.read_parquet(input_path_Regrow)
+    # Path to input and output fields
+    regrow_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_fieldID_geometry.parquet")
+    soil_input_path = os.path.join(soil_input_folder, f"gSSURGO Mukey Grid/{state}_MURASTER_30m.tif")
+    regrow_output_path = os.path.join(regrow_output_folder, f"{state}_regrow_raster_to_gSSURGO_grid.tif")
+    output_path_duplicating_fields = os.path.join(regrow_output_folder, f"{state}_regrow_duplicating_fields.parquet")
+    
+    
+    # Load regrow shape (geometry) data
+    regrow_geometry = gpd.read_parquet(regrow_input_path)
     
     # Reproject geometry to the same CRS (NAD83/CONUS Albers)
-    regrow_geometry = regrow_geometry.to_crs(epsg=5070)
+    regrow_geometry = regrow_geometry.to_crs(target_CRS)
     
     
     
@@ -74,12 +81,10 @@ def regrow_duplicating_fields_rasterization(state, input_path_Regrow, output_pat
     ### Process mukey raster file to create pairs of Regrow field_id: mukeys (pixel values) ###
     # Regrow field_id → unique field integers
     id_map = {s: i for i, s in enumerate(regrow_geometry["field_id"].unique())}
-    # Unique field integers → Regrow field_id
-    reverse_id_map = {v: k for k, v in id_map.items()} 
     regrow_geometry["pid"] = regrow_geometry["field_id"].map(id_map)
 
     # Rasterize Regrow based on mukey raster file
-    with rasterio.open(f"data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif") as src:
+    with rasterio.open(soil_input_path) as src:
         # Match CRS between vector Regrow and gSSURGO raster
         regrow_geometry = regrow_geometry.to_crs(src.crs)
 
@@ -113,15 +118,11 @@ def regrow_duplicating_fields_rasterization(state, input_path_Regrow, output_pat
             "transform": transform
         }
 
-        with rasterio.open(output_path_raster, "w", **out_meta) as dst:
+        with rasterio.open(regrow_output_path, "w", **out_meta) as dst:
             dst.write(parcel_raster, 1)
             
         print(f"Rasterization for {state} is complete and output files are saved.")
 
+# Main code
 for state in states:
-    
-    input_path_Regrow = os.path.join(input_folder_Regrow, f"{state}_regrow_fieldID_geometry.parquet")
-    output_path_raster = os.path.join(output_folder_Regrow, f"{state}_regrow_raster_to_gSSURGO_grid.tif")
-    output_path_duplicating_fields = os.path.join(output_folder_Regrow, f"{state}_regrow_duplicating_fields.parquet")
-    
-    regrow_duplicating_fields_rasterization(state, input_path_Regrow, output_path_raster, output_path_duplicating_fields)
+    regrow_duplicating_fields_rasterization(state, target_CRS, regrow_input_folder, soil_input_folder, regrow_output_folder)

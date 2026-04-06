@@ -7,20 +7,27 @@ import os
 from pathlib import Path
 
 
-# Input and output folders for CSB
-input_folder_CSB = snakemake.params.CSB_input_dir
-output_folder_CSB = snakemake.params.CSB_output_dir
-
-# Pull list of states for running the code
+# Import parameters from Snakemake
+CSB_input_folder = snakemake.params.CSB_input_dir
+soil_input_folder = snakemake.params.soil_input_dir
+CSB_output_folder = snakemake.params.CSB_output_dir
 states = snakemake.params.states
+CSB_years = snakemake.params.CSB_years
+target_CRS = snakemake.params.target_CRS
 
-def CSB_duplicating_fields_rasterization(state, input_path_CSB, output_path_raster, output_path_duplicating_fields):
+
+def CSB_duplicating_fields_rasterization(state, CSB_year, target_CRS, CSB_input_folder, soil_input_folder, CSB_output_folder):
+    
+    CSB_input_path = os.path.join(CSB_input_folder, f"{state}_CSB{CSB_year}_CSBID_geometry.parquet")
+    soil_input_path = os.path.join(soil_input_folder, f"gSSURGO Mukey Grid/{state}_MURASTER_30m.tif")
+    CSB_output_path = os.path.join(CSB_output_folder, f"{state}_CSB{CSB_year}_raster_to_gSSURGO_grid.tif")
+    output_path_duplicating_fields = os.path.join(CSB_output_folder, f"{state}_CSB{CSB_year}_duplicating_fields.parquet")
     
     # Load CSB_dises joined datasets
-    CSB_geometry = gpd.read_parquet(input_path_CSB)
+    CSB_geometry = gpd.read_parquet(CSB_input_path)
     
     # Reproject geometry to the same CRS (NAD83/CONUS Albers)
-    CSB_geometry = CSB_geometry.to_crs(epsg=5070)
+    CSB_geometry = CSB_geometry.to_crs(target_CRS)
     
     
     
@@ -72,12 +79,10 @@ def CSB_duplicating_fields_rasterization(state, input_path_CSB, output_path_rast
     ### Process mukey raster file to create pairs of CSBID CSBID: mukeys (pixel values) ###
     # CSBID CSBID → unique field integers
     id_map = {s: i for i, s in enumerate(CSB_geometry["CSBID"].unique())}
-    # Unique field integers → CSBID CSBID
-    reverse_id_map = {v: k for k, v in id_map.items()} 
     CSB_geometry["pid"] = CSB_geometry["CSBID"].map(id_map)
 
     # Rasterize CSB
-    with rasterio.open(f"data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif") as src:
+    with rasterio.open(soil_input_path) as src:
         # Match CRS between vector CSBID and gSSURGO raster
         CSB_geometry = CSB_geometry.to_crs(src.crs)
 
@@ -111,14 +116,10 @@ def CSB_duplicating_fields_rasterization(state, input_path_CSB, output_path_rast
             "transform": transform
         }
 
-        with rasterio.open(output_path_raster, "w", **out_meta) as dst:
+        with rasterio.open(CSB_output_path, "w", **out_meta) as dst:
             dst.write(parcel_raster, 1)
 
 
-for state in states:
-    
-    input_path_CSB = os.path.join(input_folder_CSB, f"{state}_CSB1724_CSBID_geometry.parquet")
-    output_path_raster = os.path.join(output_folder_CSB, f"{state}_CSB1724_raster_to_gSSURGO_grid.tif")
-    output_path_duplicating_fields = os.path.join(output_folder_CSB, f"{state}_CSB1724_duplicating_fields.parquet")
-    
-    CSB_duplicating_fields_rasterization(state, input_path_CSB, output_path_raster, output_path_duplicating_fields)
+for CSB_year in CSB_years:
+    for state in states:
+        CSB_duplicating_fields_rasterization(state, CSB_year, target_CRS, CSB_input_folder, soil_input_folder, CSB_output_folder)

@@ -1,42 +1,39 @@
 import geopandas as gpd
 from rasterstats import zonal_stats
 import os
+from pathlib import Path
 
-#---# Load required datasets
-# Paths to the reprojected slope and elevation raster files
-elevation_proj_path = "data/Geo/elevation/elevation_reproj.tif"
-slope_proj_path = "data/Geo/elevation/slope_reproj.tif"
-
-# Input and output folders for Regrow
-input_folder_Regrow = "data/edited/Regrow/"
-output_folder_Regrow = "data/edited/Regrow/"
-
-# List of states
+# Import parameters from Snakemake
+regrow_input_folder = snakemake.params.regrow_input_dir
+regrow_output_folder = snakemake.params.regrow_output_dir
+elevation_input_folder = snakemake.params.elevation_input_dir
+slope_input_folder = snakemake.params.slope_input_dir
 states = snakemake.params.states
 
 
 for state in states:
-    
-    input_path_Regrow = os.path.join(input_folder_Regrow, f"{state}_regrow_shape_table.geojson")
+
+    # Paths to the reprojected slope and elevation raster files
+    elevation_proj_path = os.path.join(elevation_input_folder, f"{state}_elevation_clipped.tif")
+    slope_proj_path = os.path.join(slope_input_folder, f"{state}_slope_clipped.tif")
+
+    input_path_Regrow = os.path.join(regrow_input_folder, f"{state}_regrow_fieldID_geometry.parquet")
     
     # Load Regrow data
-    regrow_shape = gpd.read_file(input_path_Regrow)
+    regrow_shape = gpd.read_parquet(input_path_Regrow)
 
     # Setting active geometry column
     regrow_shape = regrow_shape.set_geometry('geometry')
     
-    # Reproject geometry to an equal-area CRS (NAD83/CONUS Albers)
-    regrow_shape = regrow_shape.to_crs(epsg=5070)
-    
     # Keep only the columns necessary for the spatial join
     cols_to_keep = ['field_id', 'geometry']
     regrow_shape = regrow_shape[cols_to_keep]
-    
+     
     
     #---# Add zonal statistics for elevation and slope
     # Set paths to output files
-    output_path_geojson = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_2_spatial.geojson")
-    output_path_csv = os.path.join(output_folder_Regrow, f"{state}_regrow_supplement_2_table.csv")
+    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_2_spatial.parquet")
+    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_2_table.parquet")
     
     # Zonal statistics for elevation
     try:
@@ -65,11 +62,15 @@ for state in states:
     if regrow_shape[cols_to_check].isna().any().any():
         print(regrow_shape[regrow_shape[cols_to_check].isna().any(axis=1)])
     
-    # Save geojson and csv files
-    #regrow_shape.to_file(output_path_geojson, driver="GeoJSON")
+    # Convert float64 columns to float32 to save memory
+    float64_cols = regrow_shape.select_dtypes(include=["float64"]).columns
+    regrow_shape[float64_cols] = regrow_shape[float64_cols].astype("float32")
+    
+    #---# Save files w/ and w/o geometry
+    #regrow_shape.to_parquet(output_path_spatial, compression="zstd")
     attribute_table = regrow_shape.drop(columns='geometry')
     print(attribute_table.shape) #check df shape
-    attribute_table.to_csv(output_path_csv, index=False)
+    attribute_table.to_parquet(output_path_table, index=False, compression="zstd")
     print(f'Supplementary data 2 for {state} is created and saved')
     
 
