@@ -60,7 +60,7 @@ data/
 # Old versions of scripts that are no longer in use
 scripts/join_regrow_supplement_1-3.py
 scripts/join_csb_supplement_1-3.py
-scripts/clean_regrow_cover_crop
-scripts/clean_regrow_main_crop
-scripts/clean_regrow_tillage
-scripts/clean_regrow_shape
+scripts/clean_regrow_cover_crop.py
+scripts/clean_regrow_main_crop.py
+scripts/clean_regrow_tillage.py
+scripts/clean_regrow_shape.py
