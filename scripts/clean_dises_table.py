@@ -33,4 +33,4 @@ dises_table_cleaned['civic_index'] = dises_table_cleaned[['FI_11', 'FI_12', 'FI_
 
 # Save dises data table for future join with dises shape
 os.makedirs(input_folder_dises_table, exist_ok = True)
-dises_table_cleaned.to_csv(output_path_dises_table, index = False)
+dises_table_cleaned.to_csv(output_path_dises_table, index = False) 

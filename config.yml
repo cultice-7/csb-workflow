@@ -27,20 +27,22 @@ DISES:
   output_dir: data/edited/DISES
 
 regrow_DISES:
-  buffer_margin: 0 # how much to shrink (or erode if positive) Regrow polygon inward before overplaying with DISES parcels
+  buffer_margin: -10 # how much to shrink (or erode if positive) Regrow polygon inward before overplaying with DISES parcels
   area_match_coefs: [0.75, 1.25]
   edited_output_dir: "data/edited/Regrow"
 
 csb_DISES:
-  buffer_margin: 0 # how much to shrink (or erode if positive) CSB polygon inward before overplaying with DISES parcels
+  buffer_margin: -10 # how much to shrink (or erode if positive) CSB polygon inward before overplaying with DISES parcels
   area_match_coefs: [0.75, 1.25]
   edited_output_dir: "data/edited/CSB"
 
 regrow_supplement:
   edited_output_dir: "data/edited/Regrow"
+  rasterization_to_gSSURGO_output_dir: "data/edited/Regrow/Rasterization to gSSURGO grid"
 
 csb_supplement:
   edited_output_dir: "data/edited/CSB"
+  rasterization_to_gSSURGO_output_dir: "data/edited/CSB/Rasterization to gSSURGO grid"
 
 cdl:
   base_html: "https://www.nass.usda.gov/Research_and_Science/Cropland/Release/datasets"
@@ -104,6 +106,7 @@ price:
 
 soil:
   soil_depth_cm: 30
+  rasterization_overlap_share_threshold: 0.5
   raw_dir: "data/gSSURGO"
   output_dir: "data/gSSURGO"
   edited_output_dir: "data/edited/Soil"

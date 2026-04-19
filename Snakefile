@@ -31,9 +31,11 @@ rule all:
         # CSB-DISES spatial join
         expand("data/edited/CSB/{state}_CSB{years}_dises_table.parquet", state=STATES_DISES, years=CSB_YEARS),
         # Regrow supplement tables 1-8
-        expand("data/edited/Regrow/{state}_regrow_supplement_{n}_table.parquet", state=STATES, n=range(1, 9)),
+        expand("data/edited/Regrow/{state}_regrow_supplement_{n}_table.parquet", state=STATES, n=list(range(1, 7)) + list(range(8, 9))),
+        expand("data/edited/Regrow/{state}_regrow_supplement_{n}_table_reduced.parquet", state=STATES, n=7),
         # CSB supplement tables 1-8
-        expand("data/edited/CSB/{state}_CSB{years}_supplement_{n}_table.parquet", state=STATES, years=CSB_YEARS, n=range(1, 9))
+        expand("data/edited/CSB/{state}_CSB{years}_supplement_{n}_table.parquet", state=STATES, years=CSB_YEARS, n=list(range(1, 7)) + list(range(8, 9))),
+        expand("data/edited/CSB/{state}_CSB{years}_supplement_{n}_table_reduced.parquet", state=STATES, years=CSB_YEARS, n=7)
 
 
 # =============================================================================
@@ -326,7 +328,7 @@ rule split_regrow_monitor_by_state:
         regrow_merged_geometry = expand("data/Regrow/{state}_field_boundaries.parquet", state=STATES),
         regrow_concatenated_table = expand("data/Regrow/Monitor_data_{state}.parquet", state=config["regrow"]["states_monitor"])
     output:
-        regrow_table_raw = expand("data/Regrow/{state}_Monitor_data_cleaned.parquet", state=STATES)
+        regrow_table_raw = expand("data/Regrow/{state}_Monitor_data.parquet", state=STATES)
     params:
         input_dir = config["regrow"]["raw_dir"],
         output_dir = config["regrow"]["raw_dir"],
@@ -338,7 +340,7 @@ rule split_regrow_monitor_by_state:
 # Clean Regrow data table (Monitor data)
 rule clean_regrow_table:
     input:
-        regrow_table_raw = expand("data/Regrow/{state}_Monitor_data_cleaned.parquet", state=STATES)
+        regrow_table_raw = expand("data/Regrow/{state}_Monitor_data.parquet", state=STATES)
     output:
         regrow_table_wide = expand("data/edited/Regrow/{state}_regrow_monitor_wide_coded.parquet", state=STATES)
     params:
@@ -440,14 +442,16 @@ rule rasterize_regrow_to_gSSURGO_grid:
         mukey_clipped = expand("data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif", state=STATES),
         regrow_geometry = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=STATES)
     output:
-        regrow_raster_to_gSSURGO_grid = expand("data/edited/Regrow/{state}_regrow_raster_to_gSSURGO_grid.tif", state=STATES),
-        regrow_duplicating_fields = expand("data/edited/Regrow/{state}_regrow_duplicating_fields.parquet", state=STATES)
+        regrow_raster_to_gSSURGO_grid = expand("data/edited/Regrow/Rasterization to gSSURGO grid/{state}_regrow_raster_to_gSSURGO_grid.tif", state=STATES),
+        regrow_duplicating_fields = expand("data/edited/Regrow/Rasterization to gSSURGO grid/{state}_regrow_duplicating_fields.parquet", state=STATES),
+        regrow_fieldID_pid = expand("data/edited/Regrow/Rasterization to gSSURGO grid/{state}_regrow_fieldID_pid_correspondence.parquet", state=STATES)
     params:
         regrow_input_dir = config["regrow"]["edited_output_dir"],
-        regrow_output_dir = config["regrow"]["edited_output_dir"],
+        regrow_output_dir = config["regrow_supplement"]["rasterization_to_gSSURGO_output_dir"],
         soil_input_dir = config["soil"]["edited_output_dir"],
         states = STATES,
-        target_CRS = config["global_vars"]["target_CRS"]
+        target_CRS = config["global_vars"]["target_CRS"],
+        overlap_share_threshold = config["soil"]["rasterization_overlap_share_threshold"]
     script:
         "scripts/rasterize_regrow_to_gSSURGO_grid.py"
 
@@ -457,15 +461,17 @@ rule rasterize_CSB_to_gSSURGO_grid:
         mukey_clipped = expand("data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif", state=STATES),
         csb1724_geometry = expand("data/edited/CSB/{state}_CSB{CSB_year}_CSBID_geometry.parquet", state=STATES, CSB_year = CSB_YEARS)
     output:
-        CSB_raster_to_gSSURGO_grid = expand("data/edited/CSB/{state}_CSB{CSB_year}_raster_to_gSSURGO_grid.tif", state=STATES, CSB_year = CSB_YEARS),
-        CSB_duplicating_fields = expand("data/edited/CSB/{state}_CSB{CSB_year}_duplicating_fields.parquet", state=STATES, CSB_year = CSB_YEARS)
+        CSB_raster_to_gSSURGO_grid = expand("data/edited/CSB/Rasterization to gSSURGO grid/{state}_CSB{CSB_year}_raster_to_gSSURGO_grid.tif", state=STATES, CSB_year = CSB_YEARS),
+        CSB_duplicating_fields = expand("data/edited/CSB/Rasterization to gSSURGO grid/{state}_CSB{CSB_year}_duplicating_fields.parquet", state=STATES, CSB_year = CSB_YEARS),
+        CSB_CSBID_pid = expand("data/edited/CSB/Rasterization to gSSURGO grid/{state}_CSB{CSB_year}_CSBID_pid_correspondence.parquet", state=STATES, CSB_year = CSB_YEARS)
     params:
         CSB_input_dir = config["csb"]["edited_output_dir"],
-        CSB_output_dir = config["csb"]["edited_output_dir"],
+        CSB_output_dir = config["csb_supplement"]["rasterization_to_gSSURGO_output_dir"],
         soil_input_dir = config["soil"]["edited_output_dir"],
         states = STATES,
         CSB_years = CSB_YEARS,
-        target_CRS = config["global_vars"]["target_CRS"]
+        target_CRS = config["global_vars"]["target_CRS"],
+        overlap_share_threshold = config["soil"]["rasterization_overlap_share_threshold"]
     script:
         "scripts/rasterize_CSB_to_gSSURGO_grid.py"
 
@@ -762,6 +768,19 @@ rule join_regrow_supplement_7:
     script:
         "scripts/join_regrow_supplement_7.py"
 
+rule cut_regrow_supplement_7:
+    input:
+        regrow_supplement_7_table = expand("data/edited/Regrow/{state}_regrow_supplement_7_table.parquet", state=STATES)
+    output:
+        #regrow_supplement_7_shape = expand("data/edited/Regrow/{state}_regrow_supplement_7_spatial.geojson", state=STATES),
+        regrow_supplement_7_table_reduced = expand("data/edited/Regrow/{state}_regrow_supplement_7_table_reduced.parquet", state=STATES)
+    params:
+        states = STATES,
+        regrow_input_dir = config["regrow"]["edited_output_dir"],
+        regrow_output_dir = config["regrow_supplement"]["edited_output_dir"]
+    script:
+        "scripts/cut_regrow_supplement_7.py"
+
 rule join_csb_supplement_7:
     input:
         csb_geometry = expand("data/edited/CSB/{state}_CSB{years}_CSBID_geometry.parquet", state=STATES, years=CSB_YEARS),
@@ -787,12 +806,26 @@ rule join_csb_supplement_7:
     script:
         "scripts/join_csb_supplement_7.py"
 
+rule cut_csb_supplement_7:
+    input:
+        csb1724_supplement_7_table = expand("data/edited/CSB/{state}_CSB{years}_supplement_7_table.parquet", state=STATES, years=CSB_YEARS)
+    output:
+        csb1724_supplement_7_table_reduced = expand("data/edited/CSB/{state}_CSB{years}_supplement_7_table_reduced.parquet", state=STATES, years=CSB_YEARS)
+    params:
+        states = STATES,
+        CSB_years = CSB_YEARS,
+        CSB_input_dir = config["csb"]["edited_output_dir"],
+        CSB_output_dir = config["csb_supplement"]["edited_output_dir"]
+    script:
+        "scripts/cut_csb_supplement_7.py"
+
 #---# Supplementary data 8: soil composition data
 rule join_regrow_supplement_8:
     input:
-        regrow_geometry = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=STATES),
-        regrow_raster_to_gSSURGO_grid = expand("data/edited/Regrow/{state}_regrow_raster_to_gSSURGO_grid.tif", state=STATES),
-        regrow_duplicating_fields = expand("data/edited/Regrow/{state}_regrow_duplicating_fields.parquet", state=STATES),
+        regrow_table = expand("data/edited/Regrow/{state}_regrow_table.parquet", state=STATES),
+        regrow_raster_to_gSSURGO_grid = expand("data/edited/Regrow/Rasterization to gSSURGO grid/{state}_regrow_raster_to_gSSURGO_grid.tif", state=STATES),
+        regrow_duplicating_fields = expand("data/edited/Regrow/Rasterization to gSSURGO grid/{state}_regrow_duplicating_fields.parquet", state=STATES),
+        regrow_fieldID_pid = expand("data/edited/Regrow/Rasterization to gSSURGO grid/{state}_regrow_fieldID_pid_correspondence.parquet", state=STATES),
         gSSURGO_tabular = expand("data/gSSURGO/gSSURGO_{state}/gSSURGO_{state}.gdb", state=STATES)
     output:
         #regrow_supplement_8_shape = expand("data/edited/Regrow/{state}_regrow_supplement_8_spatial.parquet", state=STATES),
@@ -801,6 +834,7 @@ rule join_regrow_supplement_8:
         states = STATES,
         soil_depth_cm = config["soil"]["soil_depth_cm"],
         regrow_input_dir = config["regrow"]["edited_output_dir"],
+        rasterized_regrow_input_dir = config["regrow_supplement"]["rasterization_to_gSSURGO_output_dir"],
         regrow_output_dir = config["regrow_supplement"]["edited_output_dir"],
         soil_input_dir = config["soil"]["output_dir"],
         soil_output_dir = config["soil"]["edited_output_dir"],
@@ -810,9 +844,10 @@ rule join_regrow_supplement_8:
 
 rule join_csb_supplement_8:
     input:
-        csb_geometry = expand("data/edited/CSB/{state}_CSB{years}_CSBID_geometry.parquet", state=STATES, years=CSB_YEARS),
-        CSB_raster_to_gSSURGO_grid = expand("data/edited/CSB/{state}_CSB1724_raster_to_gSSURGO_grid.tif", state=STATES),
-        CSB_duplicating_fields = expand("data/edited/CSB/{state}_CSB1724_duplicating_fields.parquet", state=STATES),
+        csb_table = expand("data/edited/CSB/{state}_CSB{years}_table.parquet", state=STATES, years=CSB_YEARS),
+        CSB_raster_to_gSSURGO_grid = expand("data/edited/CSB/Rasterization to gSSURGO grid/{state}_CSB{CSB_year}_raster_to_gSSURGO_grid.tif", state=STATES, CSB_year = CSB_YEARS),
+        CSB_duplicating_fields = expand("data/edited/CSB/Rasterization to gSSURGO grid/{state}_CSB{CSB_year}_duplicating_fields.parquet", state=STATES, CSB_year = CSB_YEARS),
+        CSB_CSBID_pid = expand("data/edited/CSB/Rasterization to gSSURGO grid/{state}_CSB{CSB_year}_CSBID_pid_correspondence.parquet", state=STATES, CSB_year = CSB_YEARS),
         gSSURGO_tabular = expand("data/gSSURGO/gSSURGO_{state}/gSSURGO_{state}.gdb", state=STATES)
     output:
         #csb1724_supplement_8_shape = expand("data/edited/CSB/{state}_CSB{years}_supplement_8_spatial.parquet", state=STATES, years=CSB_YEARS),
@@ -822,6 +857,7 @@ rule join_csb_supplement_8:
         CSB_years = CSB_YEARS,
         soil_depth_cm = config["soil"]["soil_depth_cm"],
         CSB_input_dir = config["csb"]["edited_output_dir"],
+        rasterized_CSB_input_dir = config["csb_supplement"]["rasterization_to_gSSURGO_output_dir"],
         CSB_output_dir = config["csb_supplement"]["edited_output_dir"],
         soil_input_dir = config["soil"]["output_dir"],
         soil_output_dir = config["soil"]["edited_output_dir"],

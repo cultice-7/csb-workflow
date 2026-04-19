@@ -5,7 +5,6 @@ import rasterio
 from rasterio.features import rasterize
 import os
 from pathlib import Path
-import pickle
 
 
 # Import parameters from Snakemake
@@ -14,6 +13,7 @@ soil_input_folder = snakemake.params.soil_input_dir
 regrow_output_folder = snakemake.params.regrow_output_dir
 states = snakemake.params.states
 target_CRS = snakemake.params.target_CRS
+overlap_share_threshold = snakemake.params.overlap_share_threshold
 
 
 def regrow_duplicating_fields_rasterization(state, target_CRS, regrow_input_folder, soil_input_folder, regrow_output_folder):
@@ -22,7 +22,8 @@ def regrow_duplicating_fields_rasterization(state, target_CRS, regrow_input_fold
     regrow_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_fieldID_geometry.parquet")
     soil_input_path = os.path.join(soil_input_folder, f"gSSURGO Mukey Grid/{state}_MURASTER_30m.tif")
     regrow_output_path = os.path.join(regrow_output_folder, f"{state}_regrow_raster_to_gSSURGO_grid.tif")
-    output_path_duplicating_fields = os.path.join(regrow_output_folder, f"{state}_regrow_duplicating_fields.parquet")
+    duplicating_fields_output_path = os.path.join(regrow_output_folder, f"{state}_regrow_duplicating_fields.parquet")
+    fieldID_pid_output_path= os.path.join(regrow_output_folder, f"{state}_regrow_fieldID_pid_correspondence.parquet")
     
     
     # Load regrow shape (geometry) data
@@ -52,7 +53,7 @@ def regrow_duplicating_fields_rasterization(state, target_CRS, regrow_input_fold
     regrow_overlaps["overlap_fraction"] = regrow_overlaps.geometry.area / regrow_overlaps["min_area"]
 
     # Keep only those with overlap >= 50%
-    regrow_overlaps = regrow_overlaps[regrow_overlaps["overlap_fraction"] >= 0.5]
+    regrow_overlaps = regrow_overlaps[regrow_overlaps["overlap_fraction"] >= overlap_share_threshold]
 
     # Keep only unique pairs (A,B) same as (B,A)
     # Make a tuple of (smaller_area_parcel, larger_area_parcel)
@@ -68,7 +69,7 @@ def regrow_duplicating_fields_rasterization(state, target_CRS, regrow_input_fold
     # Keep only necessary columns
     regrow_overlaps = regrow_overlaps[['field_id_smaller', 'field_id_larger', 'overlap_fraction']]
     # Save a separate dataset with overlapping fields
-    regrow_overlaps.to_parquet(output_path_duplicating_fields, compression="zstd")
+    regrow_overlaps.to_parquet(duplicating_fields_output_path, compression="zstd")
     
     # Clean regrow fields to remove overlapping fields
     # Extract all smaller parcel IDs from the pairs
@@ -82,14 +83,14 @@ def regrow_duplicating_fields_rasterization(state, target_CRS, regrow_input_fold
     # Regrow field_id → unique field integers
     id_map = {s: i for i, s in enumerate(regrow_geometry["field_id"].unique())}
     regrow_geometry["pid"] = regrow_geometry["field_id"].map(id_map)
+    regrow_geometry[['field_id', 'pid']].to_parquet(fieldID_pid_output_path, compression="zstd")
 
     # Rasterize Regrow based on mukey raster file
     with rasterio.open(soil_input_path) as src:
         # Match CRS between vector Regrow and gSSURGO raster
         regrow_geometry = regrow_geometry.to_crs(src.crs)
 
-        # Read gSSURGO raster file
-        mukey_raster = src.read(1)
+        # Properties of gSSURGO raster file
         transform = src.transform
         height = src.height
         width = src.width
@@ -123,6 +124,10 @@ def regrow_duplicating_fields_rasterization(state, target_CRS, regrow_input_fold
             
         print(f"Rasterization for {state} is complete and output files are saved.")
 
+
 # Main code
+# Make sure "Rasterization to gSSURGO grid" folder exists
+Path(regrow_output_folder).mkdir(parents=True, exist_ok=True)
+
 for state in states:
     regrow_duplicating_fields_rasterization(state, target_CRS, regrow_input_folder, soil_input_folder, regrow_output_folder)

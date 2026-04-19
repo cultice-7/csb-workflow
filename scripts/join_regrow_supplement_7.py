@@ -30,8 +30,6 @@ def combine_clean_regrow_files(regrow_input_folder, state):
     # Create regrow regrow_supplement_1 file by merging regrow_shape and regrow_supplement_1
     regrow_supplement_1 = regrow_shape.merge(regrow_supplement_1_table, on="field_id", how="left")
     
-    # Replace St to Saint in the county_name column
-    regrow_supplement_1['county_name'] = regrow_supplement_1['county_name'].str.replace(r'\bSt\.?\b', 'Saint', regex=True)
     # Select columns for the analysis
     selected_columns = ['field_id', 'county_name', 'geometry']
     regrow_supplement_1 = regrow_supplement_1[selected_columns]
@@ -51,21 +49,21 @@ def aggregate_crop_price_elevator_level(regrow_supplement_1, crop, state, number
 
     
     # Compute price of the nearest elevator 
-    gdf_parcel = regrow_supplement_1.to_crs(target_CRS)
+    regrow_gdf = regrow_supplement_1.to_crs(target_CRS)
     elevator_location = elevator_location.to_crs(target_CRS)
 
-    # Compute coordinates of parcel centroids and coondinates of elevators
-    centroids = gdf_parcel.geometry.centroid
-    parcel_coords = np.column_stack((centroids.x, centroids.y))
+    # Compute coordinates of field centroids and coondinates of elevators
+    field_centroids = regrow_gdf.geometry.centroid
+    field_coords = np.column_stack((field_centroids.x, field_centroids.y))
     elevator_coords = np.array([[geom.x, geom.y] for geom in elevator_location.geometry])
 
     # Create a KDTree to speed up searching for the nearest elevators
     tree = KDTree(elevator_coords)
     
     K = K # number of nearest elevators considered in the nearest elevator search
-    N = number_of_neighbors  # number of nearest elevators considered in the N-nearest elevator average
+    N = number_of_neighbors  # number of nearest elevators considered in the N-nearest elevator weighted average
 
-    distances, indices = tree.query(parcel_coords, k = N)
+    distances, indices = tree.query(field_coords, k = N)
     
     # Keep only month columns
     month_cols = df_crop_avg.columns[1:]
@@ -76,7 +74,7 @@ def aggregate_crop_price_elevator_level(regrow_supplement_1, crop, state, number
     all_nearest_elevators = []
 
     for n in range(N):
-        # get nth nearest elevator index for each parcel
+        # get n-th nearest elevator index for each field
         obj_indices_n = indices[:, n]
         tickers_n = elevator_location.iloc[obj_indices_n]['ticker'].values
 
@@ -84,59 +82,87 @@ def aggregate_crop_price_elevator_level(regrow_supplement_1, crop, state, number
         nearest_elevator_n = pd.DataFrame(
             [value_dict[t] for t in tickers_n],
             columns=month_cols,
-            index=gdf_parcel.index
+            index=regrow_gdf.index
         )
 
         all_nearest_elevators.append(nearest_elevator_n)
         
     # Start with first nearest
-    gdf_parcel_price = all_nearest_elevators[0].copy()
+    regrow_gdf_price = all_nearest_elevators[0].copy()
 
-    # Fill missing values with second and then third nearest
+    # Fill missing values with second and then until K-th nearest
     for k in range(1, K):
         vals = all_nearest_elevators[k]
-        gdf_parcel_price = gdf_parcel_price.fillna(vals)
+        regrow_gdf_price = regrow_gdf_price.fillna(vals)
 
     # Remove heavy variables from memory
     del value_dict
     
-    # Add parcel_id back
-    gdf_parcel_price.insert(0, 'field_id', gdf_parcel['field_id'])
+    # Add field_id back
+    regrow_gdf_price.insert(0, 'field_id', regrow_gdf['field_id'])
 
     # Rename columns
-    gdf_parcel_price.columns = [col.replace(f'{crop}_price_elevator_', f'{crop}_price_elevator_nearest_') if col.startswith(f'{crop}_price_elevator_') else col for col in gdf_parcel_price.columns]
+    regrow_gdf_price.columns = [col.replace(f'{crop}_price_elevator_', f'{crop}_price_elevator_nearest_') if col.startswith(f'{crop}_price_elevator_') else col for col in regrow_gdf_price.columns]
     
     # Save price file
     temp_file_path = os.path.join(temp_dir, f"{state}_{crop}_price_nearest.parquet")
-    gdf_parcel_price.to_parquet(temp_file_path , index=False, compression="zstd")
+    regrow_gdf_price.to_parquet(temp_file_path , index=False, compression="zstd")
     
     
     # Compute weighted average price of N-nearest elevator 
-    # Stack distances to all N-nearest elevators together
-    data_stack = np.stack([df.values for df in all_nearest_elevators], axis=1)
-    
-    # Convert distances to weights (closer = bigger weight)
+    # Get dimensions from the first dataframe
+    num_fields, num_months = all_nearest_elevators[0].shape
+
+    # Initialize accumulators for numerator and denominator
+    weighted_sum = np.zeros((num_fields, num_months), dtype=float)
+    weight_sum = np.zeros((num_fields, num_months), dtype=float)
+
+    # Convert distances to weights (closer elevators get larger weights)
+    # Shape: (num_fields × N)
     weights = 1 / distances
-    
-    # Expand weights to match shape (num_parcels x N x num_months)
-    weights_expanded = np.expand_dims(weights, axis=2)
-    weights_expanded = np.repeat(weights_expanded, data_stack.shape[2], axis=2)
-    
-    # Mask NaNs
-    mask = ~np.isnan(data_stack)
-    # Apply mask to weights (zero weight for NaNs)
-    weights_expanded = weights_expanded * mask
-    del mask
-    
-    # Normalize weights along N axis so sum = 1 for available values
-    weight_sums = weights_expanded.sum(axis=1, keepdims=True)
-    normalized_weights = np.divide(weights_expanded, weight_sums, where=weight_sums != 0, out=np.zeros_like(weights_expanded, dtype=float))
-    
-    weighted_mean = np.nansum(data_stack * normalized_weights, axis=1)
+
+    # Loop over each of the N nearest elevators
+    # This avoids stacking into a large 3D array (saves memory)
+    for i, df in enumerate(all_nearest_elevators):
+        
+        # Extract price data as a NumPy array
+        # Shape: (num_fields × num_months)
+        data = df.values
+        
+        # Select weights for the i-th elevator
+        # Shape: (num_fields,)
+        # We reshape to (num_fields × 1) so it broadcasts across months
+        w = weights[:, i][:, None]
+        
+        # Create a mask for valid (non-NaN) observations
+        # True where data exists, False where NaN
+        mask = ~np.isnan(data)
+        
+        # Add to numerator:
+        # - Multiply data by weights where data is valid
+        # - Add 0 where data is NaN
+        weighted_sum += np.where(mask, data * w, 0)
+        
+        # Add to denominator:
+        # - Add weight where data is valid
+        # - Add 0 where data is NaN
+        weight_sum += np.where(mask, w, 0)
+
+    # Compute final weighted mean:
+    # weighted_mean = weighted_sum / weight_sum
+    # Use np.divide with:
+    # - 'where' to avoid division by zero
+    # - 'out' to safely fill zeros where denominator is 0
+    weighted_mean = np.divide(
+        weighted_sum,
+        weight_sum,
+        where=weight_sum != 0,
+        out=np.zeros_like(weighted_sum)
+    )
     
     weighted_prices = pd.DataFrame(weighted_mean, columns=all_nearest_elevators[0].columns)
     weighted_prices.replace(0, np.nan, inplace=True)
-    weighted_prices.insert(0, 'field_id', gdf_parcel['field_id'])
+    weighted_prices.insert(0, 'field_id', regrow_gdf['field_id'])
     weighted_prices.columns = [col.replace(f'{crop}_price_elevator_', f'{crop}_price_elevator_{N}-nearest_') if col.startswith(f'{crop}_price_elevator_') else col for col in weighted_prices.columns]
     
     # Save price file
@@ -157,12 +183,12 @@ def aggregate_crop_price_county_level(regrow_supplement_1, crop, state, number_o
         index_county_location = index_county_location[~index_county_location.geometry.isna()]
 
         # Convert geometries of both datasets to target CRS
-        gdf_parcel = regrow_supplement_1.to_crs(target_CRS)
+        regrow_gdf = regrow_supplement_1.to_crs(target_CRS)
         index_county_location = index_county_location.to_crs(target_CRS)
         
-        # Compute coordinates of parcel centroids and coondinates of county centroids
-        centroids = gdf_parcel.geometry.centroid
-        parcel_coords = np.column_stack((centroids.x, centroids.y))
+        # Compute coordinates of field centroids and coondinates of county centroids
+        field_centroids = regrow_gdf.geometry.centroid
+        field_coords = np.column_stack((field_centroids.x, field_centroids.y))
         county_coords = np.array([[geom.x, geom.y] for geom in index_county_location.geometry])
 
         # Create a KDTree to speed up searching for the nearest elevators
@@ -171,16 +197,16 @@ def aggregate_crop_price_county_level(regrow_supplement_1, crop, state, number_o
         # Number of nearest counties to average
         N = number_of_neighbors
 
-        distances, indices = tree.query(parcel_coords, k = N)
+        distances, indices = tree.query(field_coords, k = N)
         
         county_name_to_index = dict(zip(index_county_location['county'], index_county_location.index))
 
         final_indices = []
-        for i, row in gdf_parcel.iterrows():
+        for i, row in regrow_gdf.iterrows():
             nearest_idx = indices[i].copy()
             
-            parcel_county = row['county_name']
-            own_county_idx = county_name_to_index.get(parcel_county)
+            field_county = row['county_name']
+            own_county_idx = county_name_to_index.get(field_county)
             
             if own_county_idx is not None:
                 # Remove own county if it is already in nearest list
@@ -205,7 +231,7 @@ def aggregate_crop_price_county_level(regrow_supplement_1, crop, state, number_o
         all_nearest_counties = []
 
         for n in range(N):
-            # get nth nearest county index for each parcel
+            # get nth nearest county index for each field
             obj_indices_n = final_indices[:, n]
             tickers_n = index_county_location.iloc[obj_indices_n]['ticker'].values
 
@@ -213,7 +239,7 @@ def aggregate_crop_price_county_level(regrow_supplement_1, crop, state, number_o
             nearest_county_n = pd.DataFrame(
                 [value_dict[t] for t in tickers_n],
                 columns=month_cols,
-                index=gdf_parcel.index
+                index=regrow_gdf.index
             )
 
             all_nearest_counties.append(nearest_county_n)
@@ -221,13 +247,13 @@ def aggregate_crop_price_county_level(regrow_supplement_1, crop, state, number_o
         # Start with first nearest
         county_price_index = all_nearest_counties[0].copy()
 
-        # Fill missing values with second and then third nearest
+        # Fill missing values with second and then until N-th nearest
         for i in range(N):
             vals = all_nearest_counties[i]
             county_price_index = county_price_index.fillna(vals)
 
-        # Add parcel_id back
-        county_price_index.insert(0, 'field_id', gdf_parcel['field_id'])
+        # Add field_id back
+        county_price_index.insert(0, 'field_id', regrow_gdf['field_id'])
         
         # Save price file
         temp_file_path = os.path.join(temp_dir, f"{state}_{crop}_price_county_index.parquet")

@@ -5,10 +5,11 @@ import rasterio
 from rasterio.features import rasterize
 import os
 from pathlib import Path
-import pickle
+import gc
 
 # Import parameters from Snakemake
 regrow_input_folder = snakemake.params.regrow_input_dir
+rasterzied_regrow_input_folder = snakemake.params.rasterized_regrow_input_dir
 regrow_output_folder = snakemake.params.regrow_output_dir
 soil_input_folder =snakemake.params.soil_input_dir
 soil_output_folder = snakemake.params.soil_output_dir
@@ -17,71 +18,7 @@ states = snakemake.params.states
 soil_depth_cm = snakemake.params.soil_depth_cm  # specify the maximum soil depth (in cm) to be used in variable calculations (weighting)
 
 
-for state in states:
-    
-    regrow_geometry_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_fieldID_geometry.parquet")
-    regrow_raster_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_raster_to_gSSURGO_grid.tif")
-    duplicating_fields_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_duplicating_fields.parquet")
-    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_8_spatial.parquet")
-    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_8_table.parquet")
-    integrated_soil_output_path = os.path.join(soil_output_folder, f"{state}_integrated_soil_variables.parquet")
-    
-    # Load regrow_dises joined datasets
-    regrow_geometry = gpd.read_parquet(regrow_geometry_input_path)
-    
-    # Create soil dataset
-    regrow_soil = regrow_geometry[['field_id']]
-    
-    
-    
-    ### Clean Regrow: Regrow geometries contain overlaps which harms rasterization, we need to remove overlaps ###
-    regrow_overlaps = pd.read_parquet(duplicating_fields_input_path)
-    
-    # Clean regrow fields to remove overlapping fields
-    # Extract all smaller parcel IDs from the pairs
-    overlap_smaller_field_ids = regrow_overlaps["field_id_smaller"].unique()
-    # Drop rows whose field_id is in smaller_ids and reset index
-    regrow_geometry = (regrow_geometry[~regrow_geometry["field_id"].isin(overlap_smaller_field_ids)]).reset_index(drop=True)
-        
-    
-    
-    ### Process mukey raster file to create pairs of Regrow field_id: mukeys (pixel values) ###
-    # Regrow field_id → unique field integers
-    id_map = {s: i for i, s in enumerate(regrow_geometry["field_id"].unique())}
-    # Unique field integers → Regrow field_id
-    reverse_id_map = {v: k for k, v in id_map.items()} 
-    regrow_geometry["pid"] = regrow_geometry["field_id"].map(id_map)
-
-    # Open gSSURGO mukey raster
-    with rasterio.open(f"{mukey_input_folder}/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif") as src_gSSURGO:
-        # Read gSSURGO mukey raster
-        mukey_raster = src_gSSURGO.read(1)
-
-    # Open rasterized Regrow
-    with rasterio.open(regrow_raster_input_path) as src_regrow:
-        # Read rasterized Regrow
-        regrow_raster = src_regrow.read(1)
-
-    # Extract pixel values for each field
-    # Indices of all pixels that belong to some field
-    rows, cols = np.where(regrow_raster >= 0)
-    parcel_ids = regrow_raster[rows, cols]
-    values = mukey_raster[rows, cols].astype(str)
-
-    # Build dictionary of field_id → pixel values
-    fieldID_mukeys = {field_id: [] for field_id in regrow_geometry.field_id}
-    for pid, val in zip(parcel_ids, values):
-        fieldID_mukeys[reverse_id_map[pid]].append(val)
-        
-    # Find and print fields with no pixels assigned
-    print(f"Regrow fields in {state} with no pixels assigned")
-    for k, v in fieldID_mukeys.items():
-        if len(v) == 0:
-            print(k, v)
-    
-    
-    
-    ### Process gSSURGO tabular data ###
+def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_output_folder):
     
     ## Uploade tabular datasets and keep specific soil variables
     # Path to gSSURGO dataset for a specific state
@@ -157,7 +94,7 @@ for state in states:
     # Keep only minimum soil restrictive layer for each cokey
     corestrictions = corestrictions.groupby("cokey")["resdept_r"].min().reset_index()
     
-    ## Dataset merging
+    ## gSSURGO dataset merging
     # Merge mapunit and component on the key "mukey" first. Then, merge corestrictions, legend and sacatalog
     mapunit_component = mapunit.merge(component, on="mukey", how="left")
     mapunit_component_corestr_legend_sacatalog = mapunit_component.merge(corestrictions, on="cokey", how="left").merge(legend, on="lkey", how="left").merge(sacatalog, on="areasymbol", how="left")
@@ -177,14 +114,14 @@ for state in states:
     mapunit_component_chorizon_corerestictions = mapunit.merge(component_chorizon_corerestictions, on="mukey", how="left")
     mapunit_component_chorizon_corerestictions_muaggatt = mapunit_component_chorizon_corerestictions.merge(muaggatt, on="mukey", how="left")
 
-    mapunit_component_chorizon_corerestictions_muaggatt_legend = mapunit_component_chorizon_corerestictions_muaggatt.merge(legend, on="lkey", how="left")
-    mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog = mapunit_component_chorizon_corerestictions_muaggatt_legend.merge(sacatalog, on="areasymbol", how="left")
+    mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog = mapunit_component_chorizon_corerestictions_muaggatt.merge(legend, on="lkey", how="left").merge(sacatalog, on="areasymbol", how="left")
     
     # Check duplicates
     if (mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog.duplicated(subset=['mukey', 'cokey', 'hzdept_r'], keep=False)).sum() != 0:
         print(f"WARNING DUPLICATING ROWS: {mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog[mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog.duplicated(subset=['mukey', 'cokey', 'hzdept_r'], keep=False)]}") 
     
     # Save the integrated soil dataset
+    integrated_soil_output_path = os.path.join(soil_output_folder, f"{state}_integrated_soil_variables.parquet")
     mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog.to_parquet(integrated_soil_output_path, compression="zstd")
     
     
@@ -280,6 +217,58 @@ for state in states:
     # Add slope data to the integrated dataset
     mukey_soil_variables = mukey_soil_variables.merge(muaggatt, on="mukey", how="left")
 
+    return mukey_soil_variables
+
+
+def merge_regrow_mukey_soilvars(state, mukey_soil_variables, regrow_input_folder, rasterzied_regrow_input_folder, regrow_output_folder):
+    
+    # Paths to input and output files
+    regrow_table_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_table.parquet")
+    regrow_raster_input_path = os.path.join(rasterzied_regrow_input_folder, f"{state}_regrow_raster_to_gSSURGO_grid.tif")
+    duplicating_fields_input_path = os.path.join(rasterzied_regrow_input_folder, f"{state}_regrow_duplicating_fields.parquet")
+    fieldID_pid_input_path = os.path.join(rasterzied_regrow_input_folder, f"{state}_regrow_fieldID_pid_correspondence.parquet")
+    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_8_table.parquet")
+    
+    # Load regrow_dises joined datasets
+    regrow_table = pd.read_parquet(regrow_table_input_path)
+    regrow_table = regrow_table[['field_id']]
+    
+    # Create soil dataset
+    regrow_soil = regrow_table.copy()
+    
+    
+    
+    ### Process mukey raster file to create pairs of Regrow field_id: mukeys (pixel values) ###
+    # Upload the dataset with a mapping from Regrow field_id to unique field integers
+    id_map = pd.read_parquet(fieldID_pid_input_path)
+    id_map = id_map.set_index("pid")
+
+    # Open gSSURGO mukey raster
+    with rasterio.open(f"{mukey_input_folder}/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif") as src_gSSURGO:
+        # Read gSSURGO mukey raster
+        mukey_raster = src_gSSURGO.read(1)
+
+    # Open rasterized Regrow
+    with rasterio.open(regrow_raster_input_path) as src_regrow:
+        # Read rasterized Regrow
+        regrow_raster = src_regrow.read(1)
+
+    # Extract pixel values for each field
+    # Indices of all pixels that belong to some field
+    rows, cols = np.where(regrow_raster >= 0)
+    field_pids = regrow_raster[rows, cols]
+    values = mukey_raster[rows, cols].astype(str)
+    
+    # Remove raster files from the memory
+    del mukey_raster, regrow_raster
+    gc.collect()
+
+    # Build correnspondence between field_id and pixel values
+    fieldID_mukeys = pd.DataFrame({
+    "field_id": id_map.loc[field_pids, "field_id"].values,
+    "value": values}
+    ).groupby("field_id")["value"].apply(list)
+
 
 
     ### Compute soil variables for each Regrow field ###
@@ -287,11 +276,11 @@ for state in states:
     num_cols = mukey_soil_variables.select_dtypes(include='number').columns.drop(['mukey', 'lkey'], errors='ignore')
     cat_cols = mukey_soil_variables.select_dtypes(exclude='number').columns.drop(['mukey', 'lkey'], errors='ignore')
 
-    # Index soil and target datasets to speed up searching
+    # Index soil dataset to speed up searching
     soil_indexed = mukey_soil_variables.set_index("mukey")
-    regrow_soil = regrow_soil.set_index("field_id")
 
     # Compute soil variables for each Regrow field by taking average (mode) across all mukeys within a given field
+    rows = []
     for fieldID, mukeys in fieldID_mukeys.items():
         if mukeys:
             sub = soil_indexed.reindex(mukeys).dropna(how="all")
@@ -302,10 +291,16 @@ for state in states:
             cat_mode = sub[cat_cols].apply(lambda x: x.dropna().value_counts().idxmax() if not x.dropna().empty else None)
 
             row = pd.concat([num_mean, cat_mode])
+            row["field_id"] = fieldID
 
-            regrow_soil.loc[fieldID, row.index] = row.values
-
+            rows.append(row)
+    
+    soil_data_for_regrow = pd.DataFrame(rows)
+    regrow_soil = regrow_soil.merge(soil_data_for_regrow, on='field_id', how="left")
+    
     # Map each smaller_field_id to its corresponding larger_field_id and then copy the values from the larger fields back into the target dataset
+    regrow_overlaps = pd.read_parquet(duplicating_fields_input_path)
+    regrow_soil = regrow_soil.set_index("field_id")
     regrow_soil.loc[regrow_overlaps["field_id_smaller"]] = regrow_soil.loc[regrow_overlaps["field_id_larger"]].values
     regrow_soil = regrow_soil.reset_index()
     
@@ -316,3 +311,10 @@ for state in states:
     
     regrow_soil.to_parquet(output_path_table, compression="zstd")
     print(f"Creating and saving soil dataset for {state} is complete")
+
+
+# Main code
+for state in states:
+    
+    mukey_soil_variables = process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_output_folder)
+    merge_regrow_mukey_soilvars(state, mukey_soil_variables, regrow_input_folder, rasterzied_regrow_input_folder, regrow_output_folder)

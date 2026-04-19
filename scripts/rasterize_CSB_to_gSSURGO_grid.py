@@ -14,6 +14,7 @@ CSB_output_folder = snakemake.params.CSB_output_dir
 states = snakemake.params.states
 CSB_years = snakemake.params.CSB_years
 target_CRS = snakemake.params.target_CRS
+overlap_share_threshold = snakemake.params.overlap_share_threshold
 
 
 def CSB_duplicating_fields_rasterization(state, CSB_year, target_CRS, CSB_input_folder, soil_input_folder, CSB_output_folder):
@@ -21,7 +22,9 @@ def CSB_duplicating_fields_rasterization(state, CSB_year, target_CRS, CSB_input_
     CSB_input_path = os.path.join(CSB_input_folder, f"{state}_CSB{CSB_year}_CSBID_geometry.parquet")
     soil_input_path = os.path.join(soil_input_folder, f"gSSURGO Mukey Grid/{state}_MURASTER_30m.tif")
     CSB_output_path = os.path.join(CSB_output_folder, f"{state}_CSB{CSB_year}_raster_to_gSSURGO_grid.tif")
-    output_path_duplicating_fields = os.path.join(CSB_output_folder, f"{state}_CSB{CSB_year}_duplicating_fields.parquet")
+    duplicating_fields_output_path = os.path.join(CSB_output_folder, f"{state}_CSB{CSB_year}_duplicating_fields.parquet")
+    CSBID_pid_output_path = os.path.join(CSB_output_folder, f"{state}_CSB{CSB_year}_CSBID_pid_correspondence.parquet")
+    
     
     # Load CSB_dises joined datasets
     CSB_geometry = gpd.read_parquet(CSB_input_path)
@@ -50,7 +53,7 @@ def CSB_duplicating_fields_rasterization(state, CSB_year, target_CRS, CSB_input_
     CSB_overlaps["overlap_fraction"] = CSB_overlaps.geometry.area / CSB_overlaps["min_area"]
 
     # Keep only those with overlap >= 50%
-    CSB_overlaps = CSB_overlaps[CSB_overlaps["overlap_fraction"] >= 0.5]
+    CSB_overlaps = CSB_overlaps[CSB_overlaps["overlap_fraction"] >= overlap_share_threshold]
 
     # Keep only unique pairs (A,B) same as (B,A)
     # Make a tuple of (smaller_area_parcel, larger_area_parcel)
@@ -66,7 +69,7 @@ def CSB_duplicating_fields_rasterization(state, CSB_year, target_CRS, CSB_input_
     # Keep only necessary columns
     CSB_overlaps = CSB_overlaps[['CSBID_smaller', 'CSBID_larger', 'overlap_fraction']]
     # Save a separate dataset with overlapping fields
-    CSB_overlaps.to_parquet(output_path_duplicating_fields, compression="zstd")
+    CSB_overlaps.to_parquet(duplicating_fields_output_path, compression="zstd")
     
     # Clean CSB fields to remove overlapping fields
     # Extract all smaller parcel IDs from the pairs
@@ -80,14 +83,14 @@ def CSB_duplicating_fields_rasterization(state, CSB_year, target_CRS, CSB_input_
     # CSBID CSBID → unique field integers
     id_map = {s: i for i, s in enumerate(CSB_geometry["CSBID"].unique())}
     CSB_geometry["pid"] = CSB_geometry["CSBID"].map(id_map)
+    CSB_geometry[['CSBID', 'pid']].to_parquet(CSBID_pid_output_path, compression="zstd")
 
     # Rasterize CSB
     with rasterio.open(soil_input_path) as src:
         # Match CRS between vector CSBID and gSSURGO raster
         CSB_geometry = CSB_geometry.to_crs(src.crs)
 
-        # Read gSSURGO raster file
-        band = src.read(1)
+        # Properties of gSSURGO raster file
         transform = src.transform
         height = src.height
         width = src.width
@@ -119,6 +122,10 @@ def CSB_duplicating_fields_rasterization(state, CSB_year, target_CRS, CSB_input_
         with rasterio.open(CSB_output_path, "w", **out_meta) as dst:
             dst.write(parcel_raster, 1)
 
+
+# Main code
+# Make sure "Rasterization to gSSURGO grid" folder exists
+Path(CSB_output_folder).mkdir(parents=True, exist_ok=True)
 
 for CSB_year in CSB_years:
     for state in states:

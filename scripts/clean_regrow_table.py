@@ -10,15 +10,23 @@ states = snakemake.params.states
 
 def clean_regrow_table(state, regrow_table_input_folder, regrow_table_output_folder):
     
-    regrow_table_input_path = os.path.join(regrow_table_input_folder, f"{state}_Monitor_data_cleaned.parquet")
+    regrow_table_input_path = os.path.join(regrow_table_input_folder, f"{state}_Monitor_data.parquet")
     regrow_table_output_path = os.path.join(regrow_table_output_folder, f"{state}_regrow_monitor_wide_coded.parquet")
     
     df = pd.read_parquet(regrow_table_input_path)
     
+    print("State name:", state)
     # Compute the number of duplicates and drop them
-    print(len(df['boundary_id'].unique()))
-    print(df.duplicated().sum())
+    print("Number of unique IDs:", df['boundary_id'].nunique())
+    print("Number of duplicating rows:", df.duplicated().sum())
     df.drop_duplicates(keep = 'first', inplace = True)
+     
+    # Check missing data and drop all rows with completely missing data
+    cols_to_check_nan = df.columns.difference(['boundary_id'])
+    print("Number of rows with missing main crop data:", df[['crop', 'crop_plant_date', 'crop_harvest_date']].isna().all(axis=1).sum())
+    print("Number of rows with missing monitor data:", df[cols_to_check_nan].isna().all(axis=1).sum())
+    df = df.dropna(subset=cols_to_check_nan, how='all')
+
     df.reset_index(drop = True, inplace = True)
 
     #Rename columns

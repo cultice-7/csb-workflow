@@ -24,6 +24,8 @@ dises_shape_table = gpd.read_parquet(Path(DISES_input_folder) / "DISES_shape_tab
 dises_shape_table = dises_shape_table.add_suffix('_dises')
 
 for year in years:
+    csb_dises_concat = pd.DataFrame()
+    
     for state in states:
             
         csb_geometry_input_path = os.path.join(CSB_input_folder, f"{state}_CSB{year}_CSBID_geometry.parquet")
@@ -135,6 +137,12 @@ for year in years:
 
         csb_dises['match_quality_dises'] = csb_dises.apply(determine_match_quality, axis=1)
         
+        # Collect all merged regrow_dises together
+        if csb_dises_concat.empty:
+            csb_dises_concat = csb_dises.copy()
+        else:
+            csb_dises_concat = pd.concat([csb_dises_concat, csb_dises], axis=0, ignore_index=True)
+    
         # Keep only the necessary columns
         cols_to_keep = [c for c in csb_dises.columns if c.endswith("_dises") or c in ["CSBID", "geometry"]]
         csb_dises = csb_dises[cols_to_keep]
@@ -149,3 +157,81 @@ for year in years:
         attribute_table = csb_dises.drop(columns='geometry')
         attribute_table.to_parquet(output_path_table, compression="zstd")
         print(f"CSB{year} and DISES for {state} are merged and saved")
+
+    # Add representative field attribute to CSB fields
+    def assign_representative_field(csb_dises):
+        
+        OVERLAP_THRESHOLD = 0.5
+        
+        mask_field_assigned = csb_dises['field_assigned_dises'] == 'Y'
+        mask_survey_responded = csb_dises['survey_responded_dises'] == 'Y'
+        mask_overlap_area = csb_dises["overlap_area_share_dises"] > OVERLAP_THRESHOLD
+        
+        csb_dises_matching = csb_dises[(mask_field_assigned) & (mask_survey_responded) & (mask_overlap_area)].reset_index(drop=True)
+        
+        csb_dises_matching["RF_level_1_dises"] = (
+            # A: size + crop match
+            csb_dises_matching["match_quality_dises"] == "A"
+        ).replace(False, np.nan)
+        
+        csb_dises_matching["RF_level_2_dises"] = (
+            # B_size: size match only, crop missing
+            (
+                (csb_dises_matching["match_quality_dises"] == "B_size") &
+                (csb_dises_matching["field_crop_23_dises"].isna())
+            ) |
+            # B_crop: crop match only, size missing
+            (
+                (csb_dises_matching["match_quality_dises"] == "B_crop") &
+                (csb_dises_matching["field_size_dises"].isna())
+            )
+        ).replace(False, np.nan)
+        
+        csb_dises_matching["RF_level_3_dises"] = (
+            # Size match only, crop mismatch
+            (
+                (csb_dises_matching["match_quality_dises"] == "B_size") &
+                (csb_dises_matching["field_crop_23_dises"].notna())
+            )
+        ).replace(False, np.nan)
+        
+        csb_dises_matching["RF_level_4_dises"] = (
+            # RF size missing, crop mismatch
+            (
+                (csb_dises_matching["match_quality_dises"] == "F") &
+                (csb_dises_matching["field_size_dises"].isna()) &
+                (csb_dises_matching["field_crop_23_dises"].notna())
+            ) |
+            # Both RF size and crop missing, only single parcel
+            (
+                (csb_dises_matching["field_crop_23_dises"].isna()) &
+                (csb_dises_matching["field_size_dises"].isna()) &
+                (csb_dises_matching["n_parcels_dises"] == 1)
+            )
+        ).replace(False, np.nan)
+
+        csb_dises_matching["area_diff"] = (csb_dises_matching["CSBACRES"] - csb_dises_matching["field_size_dises"]).abs()
+        csb_dises_matching = csb_dises_matching.sort_values(
+            by=(["comp_id_dises"] + csb_dises_matching.filter(regex="RF_level_").columns.tolist() + ["area_diff", "overlap_area_share_dises"]),
+            ascending=[True, False, False, False, False, True, False]
+        )
+        
+        csb_dises_matching = csb_dises_matching.drop_duplicates(subset=["comp_id_dises"], keep="first")
+        csb_dises_matching.reset_index(drop=True, inplace=True)
+        
+        col_to_keep = csb_dises_matching.filter(regex="CSBID|RF_level_").columns
+        return(csb_dises_matching[col_to_keep])
+
+
+    representative_field_indicator = assign_representative_field(csb_dises_concat)
+    del csb_dises_concat
+
+
+    for state in states:
+        output_path_table = os.path.join(CSB_DISES_output_folder, f"{state}_CSB{year}_dises_table.parquet")
+        csb_dises = pd.read_parquet(output_path_table)
+
+        csb_dises = csb_dises.merge(representative_field_indicator, on='CSBID', how='left')
+
+        csb_dises.to_parquet(output_path_table, compression="zstd")
+        print(f"CSB{year} and DISES with RF indicators for {state} are saved")
