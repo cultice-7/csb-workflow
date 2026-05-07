@@ -10,103 +10,108 @@ global_vars:
   target_CRS: "EPSG:5070"
 
 regrow:
-  raw_2014_2024_dir: "data/Regrow/2014-2024"
-  raw_2025_dir: "data/Regrow/2025"
-  raw_dir: "data/Regrow"
-  edited_output_dir: "data/edited/Regrow"
+  raw_data_2014_2024_dir: "data/Regrow/2014-2024"
+  raw_data_2025_dir: "data/Regrow/2025"
+  raw_data_dir: "data/Regrow"
+  final_dir: "data/edited/Regrow"
+  checks_dir: "data/edited/Regrow/Checks"
+  CDL_validation_dir: "data/edited/Regrow/CDL validation"
   states_monitor: ['OH', 'MN_WI_IA_IN_IL', 'MI']
+  rasterization_overlap_share_threshold: 0.5
 
 csb:
   base_html: "https://www.nass.usda.gov/Research_and_Science/Crop-Sequence-Boundaries/datasets"
-  raw_dir: "data/CSB"
-  output_dir: "data/CSB"
-  edited_output_dir: "data/edited/CSB"
+  raw_data_dir: "data/CSB"
+  processed_data_dir: "data/CSB"
+  final_dir: "data/edited/CSB"
+  checks_dir: "data/edited/CSB/Checks"
+  rasterization_overlap_share_threshold: 0.5
 
 DISES:
-  raw_dir: data/DISES
-  output_dir: data/edited/DISES
+  raw_data_dir: data/DISES
+  final_dir: data/edited/DISES
 
 regrow_DISES:
   buffer_margin: -10 # how much to shrink (or erode if positive) Regrow polygon inward before overplaying with DISES parcels
   area_match_coefs: [0.75, 1.25]
-  edited_output_dir: "data/edited/Regrow"
+  final_dir: "data/edited/Regrow"
 
 csb_DISES:
   buffer_margin: -10 # how much to shrink (or erode if positive) CSB polygon inward before overplaying with DISES parcels
   area_match_coefs: [0.75, 1.25]
-  edited_output_dir: "data/edited/CSB"
+  final_dir: "data/edited/CSB"
 
 regrow_supplement:
-  edited_output_dir: "data/edited/Regrow"
-  rasterization_to_gSSURGO_output_dir: "data/edited/Regrow/Rasterization to gSSURGO grid"
+  final_dir: "data/edited/Regrow"
+  rasterization_to_gSSURGO_dir: "data/edited/Regrow/Rasterization to gSSURGO grid"
 
 csb_supplement:
-  edited_output_dir: "data/edited/CSB"
-  rasterization_to_gSSURGO_output_dir: "data/edited/CSB/Rasterization to gSSURGO grid"
+  final_dir: "data/edited/CSB"
+  rasterization_to_gSSURGO_dir: "data/edited/CSB/Rasterization to gSSURGO grid"
 
 cdl:
   base_html: "https://www.nass.usda.gov/Research_and_Science/Cropland/Release/datasets"
-  raw_dir: "data/CDL"
-  output_dir: "data/CDL"
-  edited_output_dir: "data/edited/CDL"
+  raw_data_dir: "data/CDL"
+  processed_data_dir: "data/CDL"
+  final_dir: "data/edited/CDL"
+  rasterization_year: 2024
 
 elevation:
   base_html: "https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/1/TIFF/current"
   y_range: [35, 51] #N36 to N50
   x_range: [81, 100] #W081 to W099
   resampling_method: "bilinear"
-  raw_dir: "data/Geo/elevation/tiles"
-  output_dir: "data/Geo/elevation"
+  raw_data_dir: "data/Geo/elevation/tiles"
+  processed_data_dir: "data/Geo/elevation"
 
 slope:
-  output_dir: "data/Geo/slope"
+  processed_data_dir: "data/Geo/slope"
 
 census_tract: # define census tract file in Snakefile
   base_html: "https://www2.census.gov/geo/tiger/GENZ2023/shp/cb_2023_us_tract_500k.zip"
-  raw_dir: "data/Census/census_tract"
-  output_dir: "data/Census/census_tract"
+  raw_data_dir: "data/Census/census_tract"
+  processed_data_dir: "data/Census/census_tract"
 
 state_bound: # define state boundary file in Snakefile
   base_html: "https://www2.census.gov/geo/tiger/GENZ2023/shp/cb_2023_us_state_500k.zip"
-  raw_dir: "data/Census/state_bound"
-  output_dir: "data/Census/state_bound"
+  raw_data_dir: "data/Census/state_bound"
+  processed_data_dir: "data/Census/state_bound"
 
 county_bound: # define county boundary file in Snakefile
   base_html: "https://www2.census.gov/geo/tiger/GENZ2023/shp/cb_2023_us_county_500k.zip"
-  raw_dir: "data/Census/county_bound"
-  output_dir: "data/Census/county_bound"
+  raw_data_dir: "data/Census/county_bound"
+  processed_data_dir: "data/Census/county_bound"
 
 roads: 
   base_html: "https://www2.census.gov/geo/tiger/TIGER2023/PRISECROADS"
   state_codes: ['17', '18', '19', '26', '27', '39', '55', '21', '29', '31', '38', '42', '46', '54'] # main and neighboring states
-  raw_dir: "data/Roads/raw"
-  output_dir: "data/Roads"
-  edited_output_dir: "data/edited/Roads"
+  raw_data_dir: "data/Roads/raw"
+  processed_data_dir: "data/Roads"
+  final_dir: "data/edited/Roads"
 
 watershed:
   base_html: "https://prd-tnm.s3.amazonaws.com/StagedProducts/Hydrography/NHD/State/Shape"
-  raw_dir: "data/Geo/watershed/raw"
-  output_dir: "data/Geo/watershed"
+  raw_data_dir: "data/Geo/watershed/raw"
+  processed_data_dir: "data/Geo/watershed"
 
 weather:
   base_html: "https://data.prism.oregonstate.edu/time_series/us/an/800m"
   weather_variables: ["ppt", "tmax", "tmin", "tmean", "tdmean", "vpdmax", "vpdmin", "soltotal", "solslope"]
-  raw_dir: "data/Weather/raw"
-  output_dir: "data/Weather"
-  edited_output_dir: "data/edited/Weather" 
+  raw_data_dir: "data/Weather/raw"
+  processed_data_dir: "data/Weather"
+  final_dir: "data/edited/Weather" 
 
 price:
-  N_nearest: 5
-  K: 3 # number of nearest elevators considered in the nearest elevator search
+  K: 3 # number of nearest elevators considered in the nearest (single-elevator) elevator search
+  N_nearest: 5 # number of nearest elevators in k-neighbors search
   crops: ['corn', 'soybeans', 'wheat']
   levels: ['elevator','county']
   drop_threshold: 12 # drop entries (elevator prices or county price indices) with fewer than "drop_cretirion" monthly observations between 2015 and 2025
-  raw_dir: "data/Grain Price"
-  output_dir: "data/edited/Grain Price"
+  raw_data_dir: "data/Grain Price"
+  final_dir: "data/edited/Grain Price"
 
 soil:
   soil_depth_cm: 30
-  rasterization_overlap_share_threshold: 0.5
-  raw_dir: "data/gSSURGO"
-  output_dir: "data/gSSURGO"
-  edited_output_dir: "data/edited/Soil"
+  raw_data_dir: "data/gSSURGO"
+  processed_data_dir: "data/gSSURGO"
+  final_dir: "data/edited/Soil"

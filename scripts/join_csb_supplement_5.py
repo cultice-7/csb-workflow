@@ -37,8 +37,9 @@ for year in CSB_years:
         print(f"Adding activities on neighboring fields for {state}...")
         
         # Keep land management activities from CSB_clipped
-        columns_to_keep = [c for c in csb_shape_table.columns 
-                        if (c == "CSBID") or (c == "CSBACRES") or (c == "geometry") or c.startswith("CDL")]
+        exact_cols = ["CSBID", "CSBACRES", "geometry"]
+        prefix_cols = ("CDL")
+        columns_to_keep = [c for c in csb_shape_table.columns if c in exact_cols or c.startswith(prefix_cols)]
         csb_shape_table = csb_shape_table[columns_to_keep]
         
         # Identify neighboring fields

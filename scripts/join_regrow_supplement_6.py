@@ -1,5 +1,6 @@
 import geopandas as gpd
 import pandas as pd
+import numpy as np
 import rasterio
 import os
 from pathlib import Path
@@ -33,6 +34,8 @@ for state in states:
     for variable in weather_variables:
         input_dir = Path(weather_input_folder) / f"{variable}"
         weather_files = sorted(input_dir.glob(f"{state}_prism_{variable}_us_30s_*.tif"))
+        
+        # Collect all new columns for this variable once
         new_cols = {}
         
         for file in weather_files:
@@ -44,9 +47,13 @@ for state in states:
             #regrow_shape[f'{variable}_mean_{date}'] = [stat['mean'] for stat in weather_stats]
             
             with rasterio.open(file) as src:
-                weather_stats = list(src.sample(centroid_coords))
+                weather_stats = np.fromiter(
+                    (v[0] for v in src.sample(centroid_coords)),
+                    dtype=np.float32,
+                    count=len(centroid_coords)
+                )
             
-            new_cols[f'{variable}_mean_{date}'] = [stat[0] for stat in weather_stats]
+            new_cols[f'{variable}_mean_{date}'] = weather_stats
             
         regrow_shape = regrow_shape.join(pd.DataFrame(new_cols, index=regrow_shape.index))
 

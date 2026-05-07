@@ -7,23 +7,23 @@ from pathlib import Path
 
 # Import parameters from the Snakemake
 state_bound_folder = snakemake.params.state_bound_dir
-states_codes = snakemake.params.states_code
+states = snakemake.params.states
 years_range = snakemake.params.years
 target_CRS = snakemake.params.target_CRS
 cdl_input_folder = snakemake.params.cdl_input_dir
 cdl_output_folder = snakemake.params.cdl_output_dir
 
 
-def clip_cdl_using_state_boundaries(select_states, year, cdl_input_folder, cdl_output_folder):
+def clip_cdl_using_state_boundaries(state_bound_outer, state, year, cdl_input_folder, cdl_output_folder):
     
     cdl_path = os.path.join(cdl_input_folder, f"{year}_30m_cdls", f"{year}_30m_cdls.tif")
-    output_path = os.path.join(cdl_output_folder, f"{year}_30m_cdls_clipped.tif")
+    output_path = os.path.join(cdl_output_folder, f"{state}_{year}_30m_cdls_clipped.tif")
 
-    print(f"Processing {year}...")
+    print(f"Processing {state} and year {year}...")
 
     try:
         with rasterio.open(cdl_path) as src:
-            out_image, out_transform = mask(src, select_states.geometry, crop=True)
+            out_image, out_transform = mask(src, state_bound_outer.geometry, crop=True)
             out_meta = src.meta.copy()
             out_meta.update({
                 "driver": "GTiff",
@@ -35,7 +35,7 @@ def clip_cdl_using_state_boundaries(select_states, year, cdl_input_folder, cdl_o
             with rasterio.open(output_path, "w", **out_meta) as dest:
                 dest.write(out_image)
 
-        print(f"Saved clipped raster for {year}")
+        print(f"Saved clipped raster for  {state} and year {year}")
 
     except FileNotFoundError:
         print(f"File not found: {cdl_path}")
@@ -44,15 +44,21 @@ def clip_cdl_using_state_boundaries(select_states, year, cdl_input_folder, cdl_o
 
 
 # Main script
+# Read state boundary file
 state_bound = gpd.read_file(Path(state_bound_folder) / f"cb_2023_us_state_500k.shp")
-select_states = state_bound[state_bound['STATEFP'].isin(states_codes)]
+# Reproject to the target CRS
+state_bound = state_bound.to_crs(target_CRS)
 
-# Reproject CRS to match CDL rasters
-select_states = select_states.to_crs(target_CRS)
+for state in states:
+    # Extract state boundaries
+    select_state_bound = state_bound[state_bound['STUSPS'] == state]
+    
+    # Create 30 km outward buffer
+    state_bound_outer = select_state_bound.buffer(30000)
 
-# Create an output directory
-os.makedirs(cdl_output_folder, exist_ok=True)
+    # Create an output directory
+    os.makedirs(cdl_output_folder, exist_ok=True)
 
-# Loop through each year to clip CDL raster
-for year in years_range:
-    clip_cdl_using_state_boundaries(select_states, year, cdl_input_folder, cdl_output_folder)
+    # Loop through each year to clip CDL raster
+    for year in years_range:
+        clip_cdl_using_state_boundaries(state_bound_outer, state, year, cdl_input_folder, cdl_output_folder)

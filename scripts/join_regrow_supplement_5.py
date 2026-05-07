@@ -37,9 +37,9 @@ for state in states:
     print(f"Adding activities on neighboring fields for {state}...")
     
     # Keep land management activities from regrow_shape_table
-    columns_to_keep = [c for c in regrow_shape_table.columns 
-                       if (c =="field_id") or (c == "area_acre") or (c == "geometry") or c.startswith("PHtill_1") or c.startswith("PHtill_2") 
-                       or c.startswith("PPtill_1") or c.startswith("PPtill_2") or c.startswith("cover_1") or c.startswith("cover_2") or c.startswith("crop_1") or c.startswith("crop_2")]
+    exact_cols = ["field_id", "area_acre", "geometry"]
+    prefix_cols = ("PHtill_1", "PHtill_2", "PPtill_1", "PPtill_2", "cover_1", "cover_2", "crop_1", "crop_2")
+    columns_to_keep = [c for c in regrow_shape_table.columns if c in exact_cols or c.startswith(prefix_cols)]
     regrow_shape_table = regrow_shape_table[columns_to_keep]
 
     # Identify neighboring fields

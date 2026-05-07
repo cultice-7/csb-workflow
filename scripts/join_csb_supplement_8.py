@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import geopandas as gpd
+from collections import defaultdict
 import rasterio
 from rasterio.features import rasterize
 import os
@@ -10,6 +11,7 @@ import gc
 # Import parameters from Snakemake
 CSB_input_folder = snakemake.params.CSB_input_dir
 rasterized_CSB_input_folder = snakemake.params.rasterized_CSB_input_dir
+CSB_checks_folder = snakemake.params.CSB_checks_dir
 CSB_output_folder = snakemake.params.CSB_output_dir
 soil_input_folder =snakemake.params.soil_input_dir
 soil_output_folder = snakemake.params.soil_output_dir
@@ -130,7 +132,7 @@ def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_o
     top = 0
     bottom = soil_depth_cm
     
-    # Set an integrated mukey dataset for spatial join
+    # Set a mukey dataset for spatial join
     mukey_soil_variables = mapunit.copy()
     
     # Variables which values are taken only from the dominant component
@@ -151,7 +153,7 @@ def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_o
                                     "saverest":"saverest_dominant"}, inplace=True)
 
     # Add dominant component variables to the integrated dataset
-    mukey_soil_variables = mukey_soil_variables.merge(dominant_component.filter(regex="dominant|mukey"), on="mukey", how="left")
+    mukey_soil_variables = mukey_soil_variables.merge(dominant_component.filter(regex="mukey|dominant"), on="mukey", how="left")
     
     # Add variables that need to be weighted by soil layer composition: clay, sand, and pH
     mapunit_component_chorizon_copy = mapunit_component_chorizon.copy()
@@ -183,7 +185,7 @@ def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_o
             f"sandtotal_r_{soil_depth_cm}cm": horizon_weighted_target_depth(x, "sandtotal_r"),
             f"ph1to1h2o_r_{soil_depth_cm}cm": horizon_weighted_target_depth(x, "ph1to1h2o_r"),
             f"om_r_{soil_depth_cm}cm": horizon_weighted_target_depth(x, "om_r")
-        }))
+        }), include_groups=False)
         .reset_index())
     
     # Component-weighted mean for each mukey (component-weighted mean using comppct_r)
@@ -208,7 +210,7 @@ def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_o
             f"sandtotal_r_{soil_depth_cm}cm_weighted": component_weighted_mean(x, f"sandtotal_r_{soil_depth_cm}cm"),
             f"ph1to1h2o_r_{soil_depth_cm}cm_weighted": component_weighted_mean(x, f"ph1to1h2o_r_{soil_depth_cm}cm"),
             f"om_r_{soil_depth_cm}cm_weighted": component_weighted_mean(x, f"om_r_{soil_depth_cm}cm")
-        }))
+        }), include_groups=False)
         .reset_index()
     )
 
@@ -222,97 +224,100 @@ def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_o
 
 
 
-def merge_CSB_mukey_soilvars(state, year, mukey_soil_variables, CSB_input_folder, rasterized_CSB_input_folder, CSB_output_folder):
+def merge_CSB_mukey_soilvars(state, year, mukey_soil_variables, CSB_input_folder, rasterized_CSB_input_folder, CSB_checks_folder, mukey_input_folder, CSB_output_folder):
             
-        CSB_table_input_path = os.path.join(CSB_input_folder, f"{state}_CSB{year}_table.parquet")
-        CSB_raster_input_path = os.path.join(rasterized_CSB_input_folder, f"{state}_CSB{year}_raster_to_gSSURGO_grid.tif")
-        duplicating_fields_input_path = os.path.join(rasterized_CSB_input_folder, f"{state}_CSB{year}_duplicating_fields.parquet")
-        CSBID_pid_input_path = os.path.join(rasterized_CSB_input_folder, f"{state}_CSB{year}_CSBID_pid_correspondence.parquet")
-        output_path_table = os.path.join(CSB_output_folder, f"{state}_CSB{year}_supplement_8_table.parquet")
+    CSB_table_input_path = os.path.join(CSB_input_folder, f"{state}_CSB{year}_table.parquet")
+    CSB_raster_input_path = os.path.join(rasterized_CSB_input_folder, f"{state}_CSB{year}_raster_to_gSSURGO_grid.tif")
+    gssurgo_mukey_input_path = os.path.join(mukey_input_folder, "gSSURGO Mukey Grid", f"{state}_MURASTER_30m.tif")
+    overlapping_fields_input_path = os.path.join(CSB_checks_folder, f"{state}_CSB{year}_overlapping_fields.parquet")
+    CSBID_pid_input_path = os.path.join(rasterized_CSB_input_folder, f"{state}_CSB{year}_CSBID_pid_correspondence.parquet")
+    output_path_table = os.path.join(CSB_output_folder, f"{state}_CSB{year}_supplement_8_table.parquet")
+    
+    
+    # Load CSB_dises joined datasets
+    CSB_table = pd.read_parquet(CSB_table_input_path)
+    CSB_table = CSB_table[['CSBID']]
+    
+    # Create soil dataset
+    CSB_soil = CSB_table.copy()
+
+    
+    
+    ### Process mukey raster file to create pairs of CSBID CSBID: mukeys (pixel values) ###
+    # Upload the dataset with a mapping from CSB CSBID to unique field integers
+    id_map = pd.read_parquet(CSBID_pid_input_path)
+    id_map = id_map.set_index("pid")
+    
+    # Read both CSB and mukey rasters at once
+    with rasterio.open(gssurgo_mukey_input_path) as src_mukey, \
+        rasterio.open(CSB_raster_input_path) as src_CSB:
+        mukey_raster  = src_mukey.read(1)
+        CSB_raster = src_CSB.read(1)
+
+    # Extract pixel values for each field
+    # Indices of all pixels that belong to some field
+    mask = CSB_raster >= 0
+    CSB_pids = CSB_raster[mask]
+    mukeys = mukey_raster[mask].astype(str)
+    
+    # Remove raster files from the memory
+    del mukey_raster, CSB_raster
+    gc.collect()
+
+    # Build correnspondence between CSBID and pixel values
+    CSBID_mukeys = defaultdict(list)
+    CSB_ids = id_map.loc[CSB_pids, "CSBID"].values
+
+    for CSB_id, mukey in zip(CSB_ids, mukeys):
+        CSBID_mukeys[CSB_id].append(mukey)
+
+    del CSB_pids, mukeys
+    gc.collect()
+    
+    
+
+    ### Compute soil variables for each CSBID field ###
+    # Split numerical and categorical columns
+    num_cols = mukey_soil_variables.select_dtypes(include='number').columns.drop(['mukey', 'lkey'], errors='ignore')
+    cat_cols = mukey_soil_variables.select_dtypes(exclude='number').columns.drop(['mukey', 'lkey'], errors='ignore')
+
+    # Index soil dataset to speed up searching
+    soil_indexed = mukey_soil_variables.set_index("mukey")
+
+    # Compute soil variables for each CSBID field by taking average (mode) across all mukeys within a given field
+    rows = []
+    for CSBID, mukeys in CSBID_mukeys.items():
+        if not mukeys:
+            continue
         
-        
-        # Load CSB_dises joined datasets
-        CSB_table = pd.read_parquet(CSB_table_input_path)
-        CSB_table = CSB_table[['CSBID']]
-        
-        # Create soil dataset
-        CSB_soil = CSB_table.copy()
+        sub = soil_indexed.reindex(mukeys).dropna(how="all")
+        if sub.empty:
+            continue
 
-        
-        
-        ### Process mukey raster file to create pairs of CSBID CSBID: mukeys (pixel values) ###
-        # Upload the dataset with a mapping from CSB CSBID to unique field integers
-        id_map = pd.read_parquet(CSBID_pid_input_path)
-        id_map = id_map.set_index("pid")
+        num_mean = sub[num_cols].mean()
+        cat_mode = sub[cat_cols].apply(lambda x: x.dropna().value_counts().idxmax() if not x.dropna().empty else None)
 
-        # Open gSSURGO mukey raster
-        with rasterio.open(f"{mukey_input_folder}/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif") as src_gSSURGO:
-            # Read gSSURGO mukey raster
-            mukey_raster = src_gSSURGO.read(1)
+        row = pd.concat([num_mean, cat_mode])
+        row["CSBID"] = CSBID
 
-        # Open rasterized CSB
-        with rasterio.open(CSB_raster_input_path) as src_CSB:
-            # Read rasterized Regrow
-            CSB_raster = src_CSB.read(1)
+        rows.append(row)
+    
+    soil_data_for_CSB = pd.DataFrame(rows)
+    CSB_soil = CSB_soil.merge(soil_data_for_CSB, on='CSBID', how="left")
 
-        # Extract pixel values for each field
-        # Indices of all pixels that belong to some field
-        rows, cols = np.where(CSB_raster >= 0)
-        field_pids = CSB_raster[rows, cols]
-        values = mukey_raster[rows, cols].astype(str)
-        
-        # Remove raster files from the memory
-        del mukey_raster, CSB_raster
-        gc.collect()
+    # Map each smaller_CSBID to its corresponding larger_CSBID and then copy the values from the larger fields back into the target dataset
+    CSB_overlaps = pd.read_parquet(overlapping_fields_input_path)
+    CSB_soil = CSB_soil.set_index("CSBID")
+    CSB_soil.loc[CSB_overlaps["CSBID_smaller"]] = CSB_soil.loc[CSB_overlaps["CSBID_larger"]].values
+    CSB_soil = CSB_soil.reset_index()
+    
+    ### Save output files ###
+    # Convert all float64 to float32
+    float64_cols = CSB_soil.select_dtypes(include="float64").columns
+    CSB_soil[float64_cols] = CSB_soil[float64_cols].astype("float32")
 
-        # Build correnspondence between CSBID and pixel values
-        CSBID_mukeys = pd.DataFrame({
-        "CSBID": id_map.loc[field_pids, "CSBID"].values,
-        "value": values}
-        ).groupby("CSBID")["value"].apply(list)
-        
-        
-
-        ### Compute soil variables for each CSBID field ###
-        # Split numerical and categorical columns
-        num_cols = mukey_soil_variables.select_dtypes(include='number').columns.drop(['mukey', 'lkey'], errors='ignore')
-        cat_cols = mukey_soil_variables.select_dtypes(exclude='number').columns.drop(['mukey', 'lkey'], errors='ignore')
-
-        # Index soil dataset to speed up searching
-        soil_indexed = mukey_soil_variables.set_index("mukey")
-
-        # Compute soil variables for each CSBID field by taking average (mode) across all mukeys within a given field
-        rows = []
-        for CSBID, mukeys in CSBID_mukeys.items():
-            if mukeys:
-                sub = soil_indexed.reindex(mukeys).dropna(how="all")
-                if sub.empty:
-                    continue
-
-                num_mean = sub[num_cols].mean()
-                cat_mode = sub[cat_cols].apply(lambda x: x.dropna().value_counts().idxmax() if not x.dropna().empty else None)
-
-                row = pd.concat([num_mean, cat_mode])
-                row["CSBID"] = CSBID
-
-                rows.append(row)
-        
-        soil_data_for_CSB = pd.DataFrame(rows)
-        CSB_soil = CSB_soil.merge(soil_data_for_CSB, on='CSBID', how="left")
-
-        # Map each smaller_CSBID to its corresponding larger_CSBID and then copy the values from the larger fields back into the target dataset
-        CSB_overlaps = pd.read_parquet(duplicating_fields_input_path)
-        CSB_soil = CSB_soil.set_index("CSBID")
-        CSB_soil.loc[CSB_overlaps["CSBID_smaller"]] = CSB_soil.loc[CSB_overlaps["CSBID_larger"]].values
-        CSB_soil = CSB_soil.reset_index()
-        
-        ### Save output files ###
-        # Convert all float64 to float32
-        float64_cols = CSB_soil.select_dtypes(include="float64").columns
-        CSB_soil[float64_cols] = CSB_soil[float64_cols].astype("float32")
-
-        CSB_soil.to_parquet(output_path_table, compression="zstd")
-        print(f"Creating and saving soil dataset for {state} and {year} is complete")
+    CSB_soil.to_parquet(output_path_table, compression="zstd")
+    print(f"Creating and saving soil dataset for {state} and {year} is complete")
         
 
 # Main code
@@ -320,4 +325,5 @@ for year in CSB_years:
     for state in states:
 
         mukey_soil_variables = process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_output_folder)
-        merge_CSB_mukey_soilvars(state, year, mukey_soil_variables, CSB_input_folder, rasterized_CSB_input_folder, CSB_output_folder)
+        
+        merge_CSB_mukey_soilvars(state, year, mukey_soil_variables, CSB_input_folder, rasterized_CSB_input_folder, CSB_checks_folder, mukey_input_folder, CSB_output_folder)

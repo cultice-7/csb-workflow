@@ -1,10 +1,14 @@
+import os
 import rasterio
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 from osgeo import gdal
 
 # Import parameters from Snakemake
+elevation_input_folder = snakemake.params.elevation_input_dir
+elevation_output_folder = snakemake.params.elevation_output_dir
 dst_crs = snakemake.params.target_CRS
 resampling_method = snakemake.params.resampling_method
+
 
 def reproject_raster_gdal(input_path, output_path, dst_crs, resampling_method):
     """
@@ -42,9 +46,9 @@ def reproject_raster_gdal(input_path, output_path, dst_crs, resampling_method):
         print(f"Error reprojecting {input_path}: {e}")
 
 # Original raster paths
-elevation_path = "data/Geo/elevation/elevation.tif"
+elevation_path = os.path.join(elevation_input_folder, f"elevation.tif")
 # Projected raster paths
-elevation_reproj_path = "data/Geo/elevation/elevation_reprojected.tif"
+elevation_reproj_path = os.path.join(elevation_output_folder, f"elevation_reprojected.tif")
 
 # Run reprojection
 reproject_raster_gdal(

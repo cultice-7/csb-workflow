@@ -49,8 +49,8 @@ rule download_census_tract:
     output:
         tract = "data/Census/census_tract/cb_2023_us_tract_500k.shp"
     params:
-        raw_dir = config["census_tract"]["raw_dir"],
-        output_dir = config["census_tract"]["output_dir"],
+        raw_dir = config["census_tract"]["raw_data_dir"],
+        output_dir = config["census_tract"]["processed_data_dir"],
         html = config["census_tract"]["base_html"]
     script:
         "scripts/download_census_tract.py"
@@ -61,8 +61,8 @@ rule download_state_bound:
     output:
         state_bound = "data/Census/state_bound/cb_2023_us_state_500k.shp"
     params:
-        raw_dir = config["state_bound"]["raw_dir"],
-        output_dir = config["state_bound"]["output_dir"],
+        raw_dir = config["state_bound"]["raw_data_dir"],
+        output_dir = config["state_bound"]["processed_data_dir"],
         html = config["state_bound"]["base_html"]
     script:
         "scripts/download_state_bound.py"
@@ -73,8 +73,8 @@ rule download_county_bound:
     output:
         county_bound = "data/Census/county_bound/cb_2023_us_county_500k.shp"
     params:
-        raw_dir = config["county_bound"]["raw_dir"],
-        output_dir = config["county_bound"]["output_dir"],
+        raw_dir = config["county_bound"]["raw_data_dir"],
+        output_dir = config["county_bound"]["processed_data_dir"],
         html = config["county_bound"]["base_html"]
     script:
         "scripts/download_county_bound.py"
@@ -86,8 +86,8 @@ rule download_roads:
         roads = "data/Roads/prisecroads.shp"
     params:
         state_codes = config["roads"]["state_codes"],
-        raw_dir = config["roads"]["raw_dir"],
-        output_dir = config["roads"]["output_dir"],
+        raw_dir = config["roads"]["raw_data_dir"],
+        output_dir = config["roads"]["processed_data_dir"],
         html = config["roads"]["base_html"]
     script:
         "scripts/download_roads.py"
@@ -102,8 +102,8 @@ rule download_elevation:
         states = STATES,
         y_range = config["elevation"]["y_range"],
         x_range = config["elevation"]["x_range"],
-        raw_dir = config["elevation"]["raw_dir"],
-        output_dir = config["elevation"]["output_dir"],
+        raw_dir = config["elevation"]["raw_data_dir"],
+        output_dir = config["elevation"]["processed_data_dir"],
         html = config["elevation"]["base_html"]
     script:
         "scripts/download_elevation.py"
@@ -117,8 +117,8 @@ rule download_watershed:
         subwatershed = "data/Geo/watershed/subwatershed.shp"
     params:
         states = STATES_full_name,
-        raw_dir = config["watershed"]["raw_dir"],
-        output_dir = config["watershed"]["output_dir"],
+        raw_dir = config["watershed"]["raw_data_dir"],
+        output_dir = config["watershed"]["processed_data_dir"],
         html = config["watershed"]["base_html"]
     script:
         "scripts/download_watershed.py"
@@ -131,8 +131,8 @@ rule download_weather:
     params:
         weather_variables = config["weather"]["weather_variables"],
         year_range = YEARS,
-        raw_dir = config["weather"]["raw_dir"],
-        output_dir = config["weather"]["output_dir"],
+        raw_dir = config["weather"]["raw_data_dir"],
+        output_dir = config["weather"]["processed_data_dir"],
         html = config["weather"]["base_html"]
     script:
         "scripts/download_weather.py"
@@ -144,8 +144,8 @@ rule download_csb:
         csb_raw = [directory(f"data/CSB/CSB{CSB_year}.gdb") for CSB_year in CSB_YEARS],
         metadata = expand("data/CSB/NationalCSB_20{year1}-20{year2}_rev23_metadata.htm", year1=[y[:2] for y in CSB_YEARS], year2=[y[2:] for y in CSB_YEARS])
     params:
-        raw_dir = config["csb"]["raw_dir"],
-        output_dir = config["csb"]["output_dir"],
+        raw_dir = config["csb"]["raw_data_dir"],
+        output_dir = config["csb"]["processed_data_dir"],
         base_html = config["csb"]["base_html"],
         CSB_years = CSB_YEARS
     script:
@@ -158,8 +158,8 @@ rule download_cdl:
         raw_cdl = expand("data/CDL/{year}_30m_cdls/{year}_30m_cdls.tif", year=YEARS)
     params:
         years_range = YEARS,
-        raw_dir = config["cdl"]["raw_dir"],
-        output_dir = config["cdl"]["output_dir"],
+        raw_dir = config["cdl"]["raw_data_dir"],
+        output_dir = config["cdl"]["processed_data_dir"],
         html = config["cdl"]["base_html"]
     script:
         "scripts/download_cdl.py"
@@ -176,6 +176,8 @@ rule reproject_elevation:
     output:
         elevation_reproj = "data/Geo/elevation/elevation_reprojected.tif"
     params:
+        elevation_input_dir = config["elevation"]["processed_data_dir"],
+        elevation_output_dir = config["elevation"]["processed_data_dir"],
         resampling_method = config["elevation"]["resampling_method"],
         target_CRS = config["global_vars"]["target_CRS"]
     script:
@@ -187,6 +189,9 @@ rule calculate_slope:
         elevation_reproj = "data/Geo/elevation/elevation_reprojected.tif"
     output: 
         slope_reproj = "data/Geo/slope/slope_reprojected.tif"
+    params:
+        elevation_input_dir = config["elevation"]["processed_data_dir"],
+        slope_output_dir = config["slope"]["processed_data_dir"]
     script:
         "scripts/calculate_slope.py"
 
@@ -199,11 +204,11 @@ rule clip_elevation_slope:
         elevation_clipped = expand("data/Geo/elevation/{state}_elevation_clipped.tif", state=STATES),
         slope_clipped = expand("data/Geo/slope/{state}_slope_clipped.tif", state=STATES)
     params:
-        state_bound_dir = config["state_bound"]["output_dir"],
-        elevation_input_dir = config["elevation"]["output_dir"],
-        slope_input_dir = config["slope"]["output_dir"],
-        elevation_output_dir = config["elevation"]["output_dir"],
-        slope_output_dir = config["slope"]["output_dir"],
+        state_bound_dir = config["state_bound"]["processed_data_dir"],
+        elevation_input_dir = config["elevation"]["processed_data_dir"],
+        slope_input_dir = config["slope"]["processed_data_dir"],
+        elevation_output_dir = config["elevation"]["processed_data_dir"],
+        slope_output_dir = config["slope"]["processed_data_dir"],
         states = STATES,
         target_CRS = config["global_vars"]["target_CRS"]
     script:
@@ -217,9 +222,9 @@ rule clip_reproject_weather_rasters:
     output:
         weather_vars_clipped = expand("data/edited/Weather/{weather_var}/{state}_prism_{weather_var}_us_30s_{year}{month}_clipped.tif", weather_var = config["weather"]["weather_variables"], year=YEARS, month=MONTHS, state=STATES)
     params:
-        state_bound_dir = config["state_bound"]["output_dir"],
-        weather_input_dir = config["weather"]["output_dir"],
-        weather_output_dir = config["weather"]["edited_output_dir"],
+        state_bound_dir = config["state_bound"]["processed_data_dir"],
+        weather_input_dir = config["weather"]["processed_data_dir"],
+        weather_output_dir = config["weather"]["final_dir"],
         states = STATES,
         weather_variables = config["weather"]["weather_variables"],
         target_CRS = config["global_vars"]["target_CRS"]
@@ -242,8 +247,8 @@ rule clean_grain_price:
         crops = config["price"]["crops"],
         price_levels = config["price"]["levels"],
         drop_threshold = config["price"]["drop_threshold"],
-        input_dir = config["price"]["raw_dir"],
-        output_dir = config["price"]["output_dir"]
+        input_dir = config["price"]["raw_data_dir"],
+        output_dir = config["price"]["final_dir"]
     script:
         "scripts/clean_grain_price.py"
 
@@ -255,9 +260,9 @@ rule clip_gSSURGO_mukey_rasters:
     output:
         mukey_clipped = expand("data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif", state=STATES)
     params:
-        state_bound_dir = config["state_bound"]["output_dir"],
-        soil_input_dir = config["soil"]["output_dir"],
-        soil_output_dir = config["soil"]["edited_output_dir"],
+        state_bound_dir = config["state_bound"]["processed_data_dir"],
+        soil_input_dir = config["soil"]["processed_data_dir"],
+        soil_output_dir = config["soil"]["final_dir"],
         states = STATES,
         target_CRS = config["global_vars"]["target_CRS"]
     script:
@@ -270,8 +275,8 @@ rule clean_dises_table:
     output:
         dises_table_cleaned = "data/edited/DISES/DISES_table_cleaned.csv"
     params:
-        input_dir = config["DISES"]["raw_dir"],
-        output_dir = config["DISES"]["output_dir"]
+        input_dir = config["DISES"]["raw_data_dir"],
+        output_dir = config["DISES"]["final_dir"]
     script:
         "scripts/clean_dises_table.py"
 
@@ -282,8 +287,8 @@ rule clean_dises_shape:
     output:
         dises_shape_cleaned = "data/edited/DISES/DISES_shape_cleaned.parquet"
     params:
-        input_dir = config["DISES"]["raw_dir"],
-        output_dir = config["DISES"]["output_dir"],
+        input_dir = config["DISES"]["raw_data_dir"],
+        output_dir = config["DISES"]["final_dir"],
         target_CRS = config["global_vars"]["target_CRS"]
     script:
         "scripts/clean_dises_shape.py"
@@ -296,8 +301,8 @@ rule join_dises_shape_table:
     output:
         dises_shape_table = "data/edited/DISES/DISES_shape_table.parquet"
     params:
-        input_dir = config["DISES"]["output_dir"],
-        output_dir = config["DISES"]["output_dir"],
+        input_dir = config["DISES"]["final_dir"],
+        output_dir = config["DISES"]["final_dir"],
         target_CRS = config["global_vars"]["target_CRS"]
     script:
         "scripts/join_dises_shape_table.py"
@@ -313,9 +318,9 @@ rule join_regrow_updates:
         regrow_merged_geometry = expand("data/Regrow/{state}_field_boundaries.parquet", state=STATES),
         regrow_concatenated_table = expand("data/Regrow/Monitor_data_{state}.parquet", state=config["regrow"]["states_monitor"])
     params:
-        input_2014_2024_dir = config["regrow"]["raw_2014_2024_dir"],
-        input_2025_dir = config["regrow"]["raw_2025_dir"],
-        output_dir = config["regrow"]["raw_dir"],
+        input_2014_2024_dir = config["regrow"]["raw_data_2014_2024_dir"],
+        input_2025_dir = config["regrow"]["raw_data_2025_dir"],
+        output_dir = config["regrow"]["raw_data_dir"],
         states = STATES,
         states_monitor = config["regrow"]["states_monitor"],
         target_CRS = config["global_vars"]["target_CRS"]
@@ -330,8 +335,8 @@ rule split_regrow_monitor_by_state:
     output:
         regrow_table_raw = expand("data/Regrow/{state}_Monitor_data.parquet", state=STATES)
     params:
-        input_dir = config["regrow"]["raw_dir"],
-        output_dir = config["regrow"]["raw_dir"],
+        input_dir = config["regrow"]["raw_data_dir"],
+        output_dir = config["regrow"]["raw_data_dir"],
         states = STATES,
         states_monitor = config["regrow"]["states_monitor"]
     script:
@@ -344,8 +349,8 @@ rule clean_regrow_table:
     output:
         regrow_table_wide = expand("data/edited/Regrow/{state}_regrow_monitor_wide_coded.parquet", state=STATES)
     params:
-        input_dir = config["regrow"]["raw_dir"],
-        output_dir = config["regrow"]["edited_output_dir"],
+        input_dir = config["regrow"]["raw_data_dir"],
+        output_dir = config["regrow"]["final_dir"],
         states = STATES
     script:
         "scripts/clean_regrow_table.py"
@@ -360,13 +365,28 @@ rule join_regrow_shape_table:
         regrow_fieldID_geometry_gpkg = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.gpkg", state=STATES),
         regrow_table = expand("data/edited/Regrow/{state}_regrow_table.parquet", state=STATES)
     params:
-        input_geometry_dir = config["regrow"]["raw_dir"],
-        input_table_dir = config["regrow"]["edited_output_dir"],
-        output_dir = config["regrow"]["edited_output_dir"],
+        input_geometry_dir = config["regrow"]["raw_data_dir"],
+        input_table_dir = config["regrow"]["final_dir"],
+        output_dir = config["regrow"]["final_dir"],
         states = STATES,
         target_CRS = config["global_vars"]["target_CRS"]
     script:
         "scripts/join_regrow_shape_table.py"
+
+# Clean joined Regrow
+rule check_regrow_shape_table:
+    input:
+        regrow_fieldID_geometry_parquet = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=STATES),
+        regrow_table = expand("data/edited/Regrow/{state}_regrow_table.parquet", state=STATES)
+    output:
+        regrow_overlapping_fields = expand("data/edited/Regrow/Checks/{state}_regrow_overlapping_fields.parquet", state=STATES),
+    params:
+        regrow_input_dir = config["regrow"]["final_dir"],
+        regrow_checks_dir = config["regrow"]["checks_dir"],
+        states = STATES,
+        overlap_share_threshold = config["regrow"]["rasterization_overlap_share_threshold"]
+    script:
+        "scripts/check_regrow_shape_table.py"
 
 # Clip CDL raster for validation with Regrow
 rule clip_cdl_rasters:
@@ -374,34 +394,70 @@ rule clip_cdl_rasters:
         cdl = expand("data/CDL/{year}_30m_cdls/{year}_30m_cdls.tif", year=YEARS),
         states = "data/Census/state_bound/cb_2023_us_state_500k.shp"
     output:
-        clipped_cdl = expand("data/edited/CDL/{year}_30m_cdls_clipped.tif", year=YEARS)
+        clipped_cdl_rasters = expand("data/edited/CDL/{state}_{year}_30m_cdls_clipped.tif", state=STATES, year=YEARS)
     params:
-        state_bound_dir = config["state_bound"]["output_dir"],
-        cdl_input_dir = config["cdl"]["raw_dir"],
-        cdl_output_dir = config["cdl"]["edited_output_dir"],
-        states_code = STATES_CODES,
+        state_bound_dir = config["state_bound"]["processed_data_dir"],
+        CDL_input_dir = config["cdl"]["processed_data_dir"],
+        CDL_output_dir = config["cdl"]["final_dir"],
+        states = STATES,
         years = YEARS,
         target_CRS = config["global_vars"]["target_CRS"]
     script:
         "scripts/clip_cdl_rasters.py"
 
-# CDL validation for Regrow
-rule validate_regrow_shape:
-    input: 
-        regrow_shape_clean = expand("data/edited/Regrow/{state}_regrow_shape_table.parquet", state=STATES),
-        clipped_cdl_rasters = expand("data/edited/CDL/{year}_30m_cdls_clipped.tif", year=YEARS)
+# Rasterize Regrow to CDL raster format
+rule rasterize_regrow_to_CDL_grid:
+    input:
+        clipped_cdl_rasters = expand("data/edited/CDL/{state}_{year}_30m_cdls_clipped.tif", state=STATES, year=YEARS),
+        regrow_geometry = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=STATES),
+        regrow_overlapping_fields = expand("data/edited/Regrow/Checks/{state}_regrow_overlapping_fields.parquet", state=STATES)
     output:
-        validated_regrow_shape = expand("data/edited/Regrow/validation/{state}_regrow_with_cdl_validation.parquet", state=STATES),
-        summary_regrow_validation = expand("data/edited/Regrow/validation/{state}_regrow_validity_summary_by_year.xlsx", state=STATES),
-        summary_regrow_validation_cdl_1_5 = expand("data/edited/Regrow/validation/{state}_regrow_validity_summary_by_year_cdl_1_5.xlsx", state=STATES)
+        regrow_raster_to_CDL_grid = expand("data/edited/Regrow/CDL validation/{state}_regrow_raster_to_CDL_grid.tif", state=STATES),
+        regrow_fieldID_pid = expand("data/edited/Regrow/CDL validation/{state}_regrow_fieldID_pid_correspondence.parquet", state=STATES)
     params:
-        regrow_input_dir = config["regrow"]["edited_output_dir"],
-        regrow_output_dir = config["regrow"]["edited_output_dir"],
-        cdl_input_dir =  config["cdl"]["edited_output_dir"],
+        regrow_input_dir = config["regrow"]["final_dir"],
+        regrow_checks_dir = config["regrow"]["checks_dir"],
+        CDL_input_dir =  config["cdl"]["final_dir"],
+        regrow_raster_output_dir = config["regrow"]["CDL_validation_dir"],
+        states = STATES,
+        rasterization_year = config["cdl"]["rasterization_year"],
+        target_CRS = config["global_vars"]["target_CRS"]
+    script:
+        "scripts/rasterize_regrow_to_CDL_grid.py"
+
+rule join_regrow_cdl:
+    input:
+        regrow_raster_to_CDL_grid = expand("data/edited/Regrow/CDL validation/{state}_regrow_raster_to_CDL_grid.tif", state=STATES),
+        regrow_fieldID_pid = expand("data/edited/Regrow/CDL validation/{state}_regrow_fieldID_pid_correspondence.parquet", state=STATES),
+        regrow_table = expand("data/edited/Regrow/{state}_regrow_table.parquet", state=STATES),
+        clipped_cdl_rasters = expand("data/edited/CDL/{state}_{year}_30m_cdls_clipped.tif", state=STATES, year=YEARS)
+    output:
+        joined_regrow_CDL = expand("data/edited/Regrow/CDL validation/{state}_regrow_cdl_validation.parquet", state=STATES)
+    params:
+        regrow_input_dir = config["regrow"]["final_dir"],
+        regrow_raster_input_dir = config["regrow"]["CDL_validation_dir"],
+        regrow_checks_dir = config["regrow"]["checks_dir"],
+        regrow_validation_dir = config["regrow"]["CDL_validation_dir"],
+        CDL_input_dir =  config["cdl"]["final_dir"],
         states = STATES,
         years = YEARS
     script:
-        "scripts/validate_regrow_shape.py"
+        "scripts/join_regrow_cdl.py"
+
+# CDL validation for Regrow
+rule validate_regrow_crop_with_cdl:
+    input: 
+        joined_regrow_CDL = expand("data/edited/Regrow/CDL validation/{state}_regrow_cdl_validation.parquet", state=STATES),
+        regrow_table = expand("data/edited/Regrow/{state}_regrow_table.parquet", state=STATES)
+    output:
+        summary_regrow_cdl_by_category = expand("data/edited/Regrow/CDL validation/{state}_regrow_cdl_summary_by_crop_category.xlsx", state=STATES)
+    params:
+        regrow_input_dir = config["regrow"]["final_dir"],
+        regrow_validation_dir = config["regrow"]["CDL_validation_dir"],
+        states = STATES,
+        years = YEARS
+    script:
+        "scripts/validate_regrow_crop_with_cdl.py"
 
 # Clip CSB shape
 rule clip_csb_shape:
@@ -410,8 +466,8 @@ rule clip_csb_shape:
     output:
         csb_clipped = expand("data/edited/CSB/{state}_CSB{CSB_year}_clipped.parquet", state=STATES, CSB_year = CSB_YEARS)
     params:
-        csb_input_dir = config["csb"]["output_dir"],
-        csb_output_dir = config["csb"]["edited_output_dir"],
+        CSB_input_dir = config["csb"]["processed_data_dir"],
+        CSB_output_dir = config["csb"]["final_dir"],
         states = STATES,
         states_codes = STATES_CODES,
         CSB_years = CSB_YEARS
@@ -419,7 +475,7 @@ rule clip_csb_shape:
         "scripts/clip_csb_shape.py"
 
 # Split CSB shape
-rule split_csb_shape:
+rule split_csb_shape_table:
     input:
         csb_clipped = expand("data/edited/CSB/{state}_CSB{CSB_year}_clipped.parquet", state=STATES, CSB_year = CSB_YEARS)
     output:
@@ -428,30 +484,46 @@ rule split_csb_shape:
         csb_CSBID_geometry_gpkg = expand("data/edited/CSB/{state}_CSB{years}_CSBID_geometry.gpkg", state=STATES, years=CSB_YEARS),
         csb_table = expand("data/edited/CSB/{state}_CSB{years}_table.parquet", state=STATES, years=CSB_YEARS)
     params:
-        csb_input_dir = config["csb"]["edited_output_dir"],
-        csb_output_dir = config["csb"]["edited_output_dir"],
+        CSB_input_dir = config["csb"]["final_dir"],
+        CSB_output_dir = config["csb"]["final_dir"],
         states = STATES,
         CSB_years = CSB_YEARS,
         target_CRS = config["global_vars"]["target_CRS"]
     script:
-        "scripts/split_csb_shape.py"
+        "scripts/split_csb_shape_table.py"
+
+# Check potential issues with joined Regrow
+rule check_csb_shape_table:
+    input:
+        csb_CSBID_geometry_parquet = expand("data/edited/CSB/{state}_CSB{years}_CSBID_geometry.parquet", state=STATES, years=CSB_YEARS),
+        csb_table = expand("data/edited/CSB/{state}_CSB{years}_table.parquet", state=STATES, years=CSB_YEARS)
+    output:
+        csb_overlapping_fields = expand("data/edited/CSB/Checks/{state}_CSB{years}_overlapping_fields.parquet", state=STATES, years=CSB_YEARS)
+    params:
+        CSB_input_dir = config["csb"]["final_dir"],
+        CSB_checks_dir = config["csb"]["checks_dir"],
+        states = STATES,
+        CSB_years = CSB_YEARS,
+        overlap_share_threshold = config["csb"]["rasterization_overlap_share_threshold"]
+    script:
+        "scripts/check_csb_shape_table.py"
 
 # Rasterize Regrow to gSSURGO mukey raster format
 rule rasterize_regrow_to_gSSURGO_grid:
     input:
         mukey_clipped = expand("data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif", state=STATES),
-        regrow_geometry = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=STATES)
+        regrow_geometry = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=STATES),
+        regrow_overlapping_fields = expand("data/edited/Regrow/Checks/{state}_regrow_overlapping_fields.parquet", state=STATES)
     output:
         regrow_raster_to_gSSURGO_grid = expand("data/edited/Regrow/Rasterization to gSSURGO grid/{state}_regrow_raster_to_gSSURGO_grid.tif", state=STATES),
-        regrow_duplicating_fields = expand("data/edited/Regrow/Rasterization to gSSURGO grid/{state}_regrow_duplicating_fields.parquet", state=STATES),
         regrow_fieldID_pid = expand("data/edited/Regrow/Rasterization to gSSURGO grid/{state}_regrow_fieldID_pid_correspondence.parquet", state=STATES)
     params:
-        regrow_input_dir = config["regrow"]["edited_output_dir"],
-        regrow_output_dir = config["regrow_supplement"]["rasterization_to_gSSURGO_output_dir"],
-        soil_input_dir = config["soil"]["edited_output_dir"],
+        regrow_input_dir = config["regrow"]["final_dir"],
+        regrow_checks_dir = config["regrow"]["checks_dir"],
+        soil_input_dir = config["soil"]["final_dir"],
+        regrow_raster_output_dir = config["regrow_supplement"]["rasterization_to_gSSURGO_dir"],
         states = STATES,
-        target_CRS = config["global_vars"]["target_CRS"],
-        overlap_share_threshold = config["soil"]["rasterization_overlap_share_threshold"]
+        target_CRS = config["global_vars"]["target_CRS"]
     script:
         "scripts/rasterize_regrow_to_gSSURGO_grid.py"
 
@@ -459,19 +531,19 @@ rule rasterize_regrow_to_gSSURGO_grid:
 rule rasterize_CSB_to_gSSURGO_grid:
     input:
         mukey_clipped = expand("data/edited/Soil/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif", state=STATES),
-        csb1724_geometry = expand("data/edited/CSB/{state}_CSB{CSB_year}_CSBID_geometry.parquet", state=STATES, CSB_year = CSB_YEARS)
+        csb_geometry = expand("data/edited/CSB/{state}_CSB{CSB_year}_CSBID_geometry.parquet", state=STATES, CSB_year = CSB_YEARS),
+        csb_overlapping_fields = expand("data/edited/CSB/Checks/{state}_CSB{years}_overlapping_fields.parquet", state=STATES, years=CSB_YEARS)
     output:
         CSB_raster_to_gSSURGO_grid = expand("data/edited/CSB/Rasterization to gSSURGO grid/{state}_CSB{CSB_year}_raster_to_gSSURGO_grid.tif", state=STATES, CSB_year = CSB_YEARS),
-        CSB_duplicating_fields = expand("data/edited/CSB/Rasterization to gSSURGO grid/{state}_CSB{CSB_year}_duplicating_fields.parquet", state=STATES, CSB_year = CSB_YEARS),
         CSB_CSBID_pid = expand("data/edited/CSB/Rasterization to gSSURGO grid/{state}_CSB{CSB_year}_CSBID_pid_correspondence.parquet", state=STATES, CSB_year = CSB_YEARS)
     params:
-        CSB_input_dir = config["csb"]["edited_output_dir"],
-        CSB_output_dir = config["csb_supplement"]["rasterization_to_gSSURGO_output_dir"],
-        soil_input_dir = config["soil"]["edited_output_dir"],
+        CSB_input_dir = config["csb"]["final_dir"],
+        CSB_checks_dir = config["csb"]["checks_dir"],
+        soil_input_dir = config["soil"]["final_dir"],
+        CSB_raster_output_dir = config["csb_supplement"]["rasterization_to_gSSURGO_dir"],
         states = STATES,
         CSB_years = CSB_YEARS,
-        target_CRS = config["global_vars"]["target_CRS"],
-        overlap_share_threshold = config["soil"]["rasterization_overlap_share_threshold"]
+        target_CRS = config["global_vars"]["target_CRS"]
     script:
         "scripts/rasterize_CSB_to_gSSURGO_grid.py"
 
@@ -490,9 +562,9 @@ rule join_regrow_dises:
         #regrow_dises_joined_shape = expand("data/edited/Regrow/{state}_regrow_dises_spatial.parquet", state=STATES_DISES),
         regrow_dises_joined_table = expand("data/edited/Regrow/{state}_regrow_dises_table.parquet", state=STATES_DISES)
     params:
-        regrow_input_dir = config["regrow"]["edited_output_dir"],
-        DISES_input_dir = config["DISES"]["output_dir"],
-        regrow_DISES_output_dir = config["regrow_DISES"]["edited_output_dir"],
+        regrow_input_dir = config["regrow"]["final_dir"],
+        DISES_input_dir = config["DISES"]["final_dir"],
+        regrow_DISES_output_dir = config["regrow_DISES"]["final_dir"],
         states = STATES_DISES,
         buffer_margin = config["regrow_DISES"]["buffer_margin"],
         area_match_coefs = config["regrow_DISES"]["area_match_coefs"],
@@ -510,9 +582,9 @@ rule join_csb_dises:
         #csb_dises_joined_shape = expand("data/edited/CSB/{state}_CSB{years}_dises_spatial.geojson", state=STATES_DISES, years=CSB_YEARS),
         csb_dises_joined_table = expand("data/edited/CSB/{state}_CSB{years}_dises_table.parquet", state=STATES_DISES, years=CSB_YEARS)
     params:
-        CSB_input_dir = config["csb"]["edited_output_dir"],
-        DISES_input_dir = config["DISES"]["output_dir"],
-        CSB_DISES_output_dir = config["csb_DISES"]["edited_output_dir"],
+        CSB_input_dir = config["csb"]["final_dir"],
+        DISES_input_dir = config["DISES"]["final_dir"],
+        CSB_DISES_output_dir = config["csb_DISES"]["final_dir"],
         states = STATES_DISES,
         CSB_years = CSB_YEARS,
         buffer_margin = config["csb_DISES"]["buffer_margin"],
@@ -537,9 +609,9 @@ rule join_regrow_supplement_1:
     params:
         states = STATES,
         target_CRS = config["global_vars"]["target_CRS"],
-        regrow_input_dir = config["regrow"]["edited_output_dir"],
-        regrow_output_dir = config["regrow_supplement"]["edited_output_dir"],
-        census_tract_input_dir = config["census_tract"]["output_dir"]
+        regrow_input_dir = config["regrow"]["final_dir"],
+        regrow_output_dir = config["regrow_supplement"]["final_dir"],
+        census_tract_input_dir = config["census_tract"]["processed_data_dir"]
     script:
         "scripts/join_regrow_supplement_1.py"
 
@@ -554,9 +626,9 @@ rule join_csb_supplement_1:
         states = STATES,
         CSB_years = CSB_YEARS,
         target_CRS = config["global_vars"]["target_CRS"],
-        CSB_input_dir = config["csb"]["edited_output_dir"],
-        CSB_output_dir = config["csb_supplement"]["edited_output_dir"],
-        census_tract_input_dir = config["census_tract"]["output_dir"]
+        CSB_input_dir = config["csb"]["final_dir"],
+        CSB_output_dir = config["csb_supplement"]["final_dir"],
+        census_tract_input_dir = config["census_tract"]["processed_data_dir"]
     script:
         "scripts/join_csb_supplement_1.py"
 
@@ -571,10 +643,10 @@ rule join_regrow_supplement_2:
         regrow_supplement_2_table = expand("data/edited/Regrow/{state}_regrow_supplement_2_table.parquet", state=STATES)
     params:
         states = STATES,
-        regrow_input_dir = config["regrow"]["edited_output_dir"],
-        regrow_output_dir = config["regrow_supplement"]["edited_output_dir"],
-        elevation_input_dir = config["elevation"]["output_dir"],
-        slope_input_dir = config["slope"]["output_dir"]
+        regrow_input_dir = config["regrow"]["final_dir"],
+        regrow_output_dir = config["regrow_supplement"]["final_dir"],
+        elevation_input_dir = config["elevation"]["processed_data_dir"],
+        slope_input_dir = config["slope"]["processed_data_dir"]
     script:
         "scripts/join_regrow_supplement_2.py"
 
@@ -589,10 +661,10 @@ rule join_csb_supplement_2:
     params:
         states = STATES,
         CSB_years = CSB_YEARS,
-        CSB_input_dir = config["csb"]["edited_output_dir"],
-        CSB_output_dir = config["csb_supplement"]["edited_output_dir"],
-        elevation_input_dir = config["elevation"]["output_dir"],
-        slope_input_dir = config["slope"]["output_dir"]
+        CSB_input_dir = config["csb"]["final_dir"],
+        CSB_output_dir = config["csb_supplement"]["final_dir"],
+        elevation_input_dir = config["elevation"]["processed_data_dir"],
+        slope_input_dir = config["slope"]["processed_data_dir"]
     script:
         "scripts/join_csb_supplement_2.py"
 
@@ -609,9 +681,9 @@ rule join_regrow_supplement_3:
     params:
         states = STATES,
         target_CRS = config["global_vars"]["target_CRS"],
-        regrow_input_dir = config["regrow"]["edited_output_dir"],
-        regrow_output_dir = config["regrow_supplement"]["edited_output_dir"],
-        watershed_input_dir = config["watershed"]["output_dir"]
+        regrow_input_dir = config["regrow"]["final_dir"],
+        regrow_output_dir = config["regrow_supplement"]["final_dir"],
+        watershed_input_dir = config["watershed"]["processed_data_dir"]
     script:
         "scripts/join_regrow_supplement_3.py"
 
@@ -628,9 +700,9 @@ rule join_csb_supplement_3:
         states = STATES,
         CSB_years = CSB_YEARS,
         target_CRS = config["global_vars"]["target_CRS"],
-        CSB_input_dir = config["csb"]["edited_output_dir"],
-        CSB_output_dir = config["csb_supplement"]["edited_output_dir"],
-        watershed_input_dir = config["watershed"]["output_dir"]
+        CSB_input_dir = config["csb"]["final_dir"],
+        CSB_output_dir = config["csb_supplement"]["final_dir"],
+        watershed_input_dir = config["watershed"]["processed_data_dir"]
     script:
         "scripts/join_csb_supplement_3.py"
 
@@ -649,10 +721,10 @@ rule join_regrow_supplement_4:
     params:
         states = STATES,
         target_CRS = config["global_vars"]["target_CRS"],
-        regrow_input_dir = config["regrow"]["edited_output_dir"],
-        regrow_output_dir = config["regrow_supplement"]["edited_output_dir"],
-        roads_input_dir = config["roads"]["output_dir"],
-        roads_output_dir = config["roads"]["edited_output_dir"]
+        regrow_input_dir = config["regrow"]["final_dir"],
+        regrow_output_dir = config["regrow_supplement"]["final_dir"],
+        roads_input_dir = config["roads"]["processed_data_dir"],
+        roads_output_dir = config["roads"]["final_dir"]
     script:
         "scripts/join_regrow_supplement_4.py"
 
@@ -670,10 +742,10 @@ rule join_csb_supplement_4:
         states = STATES,
         CSB_years = CSB_YEARS,
         target_CRS = config["global_vars"]["target_CRS"],
-        CSB_input_dir = config["csb"]["edited_output_dir"],
-        CSB_output_dir = config["csb_supplement"]["edited_output_dir"],
-        roads_input_dir = config["roads"]["output_dir"],
-        roads_output_dir = config["roads"]["edited_output_dir"]
+        CSB_input_dir = config["csb"]["final_dir"],
+        CSB_output_dir = config["csb_supplement"]["final_dir"],
+        roads_input_dir = config["roads"]["processed_data_dir"],
+        roads_output_dir = config["roads"]["final_dir"]
     script:
         "scripts/join_csb_supplement_4.py"
 
@@ -688,8 +760,8 @@ rule join_regrow_supplement_5:
         regrow_supplement_5_table = expand("data/edited/Regrow/{state}_regrow_supplement_5_table.parquet", state=STATES)
     params:
         states = STATES,
-        regrow_input_dir = config["regrow"]["edited_output_dir"],
-        regrow_output_dir = config["regrow_supplement"]["edited_output_dir"]
+        regrow_input_dir = config["regrow"]["final_dir"],
+        regrow_output_dir = config["regrow_supplement"]["final_dir"]
     script:
         "scripts/join_regrow_supplement_5.py"
 
@@ -703,8 +775,8 @@ rule join_csb_supplement_5:
     params:
         states = STATES,
         CSB_years = CSB_YEARS,
-        CSB_input_dir = config["csb"]["edited_output_dir"],
-        CSB_output_dir = config["csb_supplement"]["edited_output_dir"]
+        CSB_input_dir = config["csb"]["final_dir"],
+        CSB_output_dir = config["csb_supplement"]["final_dir"]
     script:
         "scripts/join_csb_supplement_5.py"
 
@@ -720,9 +792,9 @@ rule join_regrow_supplement_6:
     params:
         states = STATES,
         weather_variables = config["weather"]["weather_variables"],
-        regrow_input_dir = config["regrow"]["edited_output_dir"],
-        regrow_output_dir = config["regrow_supplement"]["edited_output_dir"],
-        weather_input_dir = config["weather"]["edited_output_dir"]
+        regrow_input_dir = config["regrow"]["final_dir"],
+        regrow_output_dir = config["regrow_supplement"]["final_dir"],
+        weather_input_dir = config["weather"]["final_dir"]
     script:
         "scripts/join_regrow_supplement_6.py"
 
@@ -737,9 +809,9 @@ rule join_csb_supplement_6:
         states = STATES,
         CSB_years = CSB_YEARS,
         weather_variables = config["weather"]["weather_variables"],
-        CSB_input_dir = config["csb"]["edited_output_dir"],
-        CSB_output_dir = config["csb_supplement"]["edited_output_dir"],
-        weather_input_dir = config["weather"]["edited_output_dir"]
+        CSB_input_dir = config["csb"]["final_dir"],
+        CSB_output_dir = config["csb_supplement"]["final_dir"],
+        weather_input_dir = config["weather"]["final_dir"]
     script:
         "scripts/join_csb_supplement_6.py"
 
@@ -762,9 +834,9 @@ rule join_regrow_supplement_7:
         number_of_neighbors = config["price"]["N_nearest"],
         K = config["price"]["K"],
         target_CRS = config["global_vars"]["target_CRS"],
-        regrow_input_dir = config["regrow"]["edited_output_dir"],
-        regrow_output_dir = config["regrow_supplement"]["edited_output_dir"],
-        crop_price_input_dir = config["price"]["output_dir"]
+        regrow_input_dir = config["regrow"]["final_dir"],
+        regrow_output_dir = config["regrow_supplement"]["final_dir"],
+        crop_price_input_dir = config["price"]["final_dir"]
     script:
         "scripts/join_regrow_supplement_7.py"
 
@@ -776,8 +848,8 @@ rule cut_regrow_supplement_7:
         regrow_supplement_7_table_reduced = expand("data/edited/Regrow/{state}_regrow_supplement_7_table_reduced.parquet", state=STATES)
     params:
         states = STATES,
-        regrow_input_dir = config["regrow"]["edited_output_dir"],
-        regrow_output_dir = config["regrow_supplement"]["edited_output_dir"]
+        regrow_input_dir = config["regrow"]["final_dir"],
+        regrow_output_dir = config["regrow_supplement"]["final_dir"]
     script:
         "scripts/cut_regrow_supplement_7.py"
 
@@ -800,9 +872,9 @@ rule join_csb_supplement_7:
         number_of_neighbors = config["price"]["N_nearest"],
         K = config["price"]["K"],
         target_CRS = config["global_vars"]["target_CRS"],
-        CSB_input_dir = config["csb"]["edited_output_dir"],
-        CSB_output_dir = config["csb_supplement"]["edited_output_dir"],
-        crop_price_input_dir = config["price"]["output_dir"]
+        CSB_input_dir = config["csb"]["final_dir"],
+        CSB_output_dir = config["csb_supplement"]["final_dir"],
+        crop_price_input_dir = config["price"]["final_dir"]
     script:
         "scripts/join_csb_supplement_7.py"
 
@@ -814,8 +886,8 @@ rule cut_csb_supplement_7:
     params:
         states = STATES,
         CSB_years = CSB_YEARS,
-        CSB_input_dir = config["csb"]["edited_output_dir"],
-        CSB_output_dir = config["csb_supplement"]["edited_output_dir"]
+        CSB_input_dir = config["csb"]["final_dir"],
+        CSB_output_dir = config["csb_supplement"]["final_dir"]
     script:
         "scripts/cut_csb_supplement_7.py"
 
@@ -824,7 +896,7 @@ rule join_regrow_supplement_8:
     input:
         regrow_table = expand("data/edited/Regrow/{state}_regrow_table.parquet", state=STATES),
         regrow_raster_to_gSSURGO_grid = expand("data/edited/Regrow/Rasterization to gSSURGO grid/{state}_regrow_raster_to_gSSURGO_grid.tif", state=STATES),
-        regrow_duplicating_fields = expand("data/edited/Regrow/Rasterization to gSSURGO grid/{state}_regrow_duplicating_fields.parquet", state=STATES),
+        regrow_overlapping_fields = expand("data/edited/Regrow/Checks/{state}_regrow_overlapping_fields.parquet", state=STATES),
         regrow_fieldID_pid = expand("data/edited/Regrow/Rasterization to gSSURGO grid/{state}_regrow_fieldID_pid_correspondence.parquet", state=STATES),
         gSSURGO_tabular = expand("data/gSSURGO/gSSURGO_{state}/gSSURGO_{state}.gdb", state=STATES)
     output:
@@ -833,12 +905,13 @@ rule join_regrow_supplement_8:
     params:
         states = STATES,
         soil_depth_cm = config["soil"]["soil_depth_cm"],
-        regrow_input_dir = config["regrow"]["edited_output_dir"],
-        rasterized_regrow_input_dir = config["regrow_supplement"]["rasterization_to_gSSURGO_output_dir"],
-        regrow_output_dir = config["regrow_supplement"]["edited_output_dir"],
-        soil_input_dir = config["soil"]["output_dir"],
-        soil_output_dir = config["soil"]["edited_output_dir"],
-        mukey_input_dir = config["soil"]["edited_output_dir"]
+        regrow_input_dir = config["regrow"]["final_dir"],
+        rasterized_regrow_input_dir = config["regrow_supplement"]["rasterization_to_gSSURGO_dir"],
+        regrow_checks_dir = config["regrow"]["checks_dir"],
+        regrow_output_dir = config["regrow_supplement"]["final_dir"],
+        soil_input_dir = config["soil"]["processed_data_dir"],
+        soil_output_dir = config["soil"]["final_dir"],
+        mukey_input_dir = config["soil"]["final_dir"]
     script:
         "scripts/join_regrow_supplement_8.py"
 
@@ -846,7 +919,7 @@ rule join_csb_supplement_8:
     input:
         csb_table = expand("data/edited/CSB/{state}_CSB{years}_table.parquet", state=STATES, years=CSB_YEARS),
         CSB_raster_to_gSSURGO_grid = expand("data/edited/CSB/Rasterization to gSSURGO grid/{state}_CSB{CSB_year}_raster_to_gSSURGO_grid.tif", state=STATES, CSB_year = CSB_YEARS),
-        CSB_duplicating_fields = expand("data/edited/CSB/Rasterization to gSSURGO grid/{state}_CSB{CSB_year}_duplicating_fields.parquet", state=STATES, CSB_year = CSB_YEARS),
+        CSB_overlapping_fields = expand("data/edited/CSB/Checks/{state}_CSB{CSB_year}_overlapping_fields.parquet", state=STATES, CSB_year = CSB_YEARS),
         CSB_CSBID_pid = expand("data/edited/CSB/Rasterization to gSSURGO grid/{state}_CSB{CSB_year}_CSBID_pid_correspondence.parquet", state=STATES, CSB_year = CSB_YEARS),
         gSSURGO_tabular = expand("data/gSSURGO/gSSURGO_{state}/gSSURGO_{state}.gdb", state=STATES)
     output:
@@ -856,12 +929,13 @@ rule join_csb_supplement_8:
         states = STATES,
         CSB_years = CSB_YEARS,
         soil_depth_cm = config["soil"]["soil_depth_cm"],
-        CSB_input_dir = config["csb"]["edited_output_dir"],
-        rasterized_CSB_input_dir = config["csb_supplement"]["rasterization_to_gSSURGO_output_dir"],
-        CSB_output_dir = config["csb_supplement"]["edited_output_dir"],
-        soil_input_dir = config["soil"]["output_dir"],
-        soil_output_dir = config["soil"]["edited_output_dir"],
-        mukey_input_dir = config["soil"]["edited_output_dir"]
+        CSB_input_dir = config["csb"]["final_dir"],
+        rasterized_CSB_input_dir = config["csb_supplement"]["rasterization_to_gSSURGO_dir"],
+        CSB_checks_dir = config["csb"]["checks_dir"],
+        CSB_output_dir = config["csb_supplement"]["final_dir"],
+        soil_input_dir = config["soil"]["processed_data_dir"],
+        soil_output_dir = config["soil"]["final_dir"],
+        mukey_input_dir = config["soil"]["final_dir"]
     script:
         "scripts/join_csb_supplement_8.py"
 

@@ -9,78 +9,42 @@ from pathlib import Path
 
 # Import parameters from Snakemake
 CSB_input_folder = snakemake.params.CSB_input_dir
+CSB_checks_folder = snakemake.params.CSB_checks_dir
 soil_input_folder = snakemake.params.soil_input_dir
-CSB_output_folder = snakemake.params.CSB_output_dir
+CSB_raster_output_folder = snakemake.params.CSB_raster_output_dir
 states = snakemake.params.states
 CSB_years = snakemake.params.CSB_years
 target_CRS = snakemake.params.target_CRS
-overlap_share_threshold = snakemake.params.overlap_share_threshold
 
 
-def CSB_duplicating_fields_rasterization(state, CSB_year, target_CRS, CSB_input_folder, soil_input_folder, CSB_output_folder):
+def CSB_rasterization(state, CSB_year, CSB_input_folder, CSB_checks_folder, soil_input_folder, CSB_raster_output_folder):
     
     CSB_input_path = os.path.join(CSB_input_folder, f"{state}_CSB{CSB_year}_CSBID_geometry.parquet")
     soil_input_path = os.path.join(soil_input_folder, f"gSSURGO Mukey Grid/{state}_MURASTER_30m.tif")
-    CSB_output_path = os.path.join(CSB_output_folder, f"{state}_CSB{CSB_year}_raster_to_gSSURGO_grid.tif")
-    duplicating_fields_output_path = os.path.join(CSB_output_folder, f"{state}_CSB{CSB_year}_duplicating_fields.parquet")
-    CSBID_pid_output_path = os.path.join(CSB_output_folder, f"{state}_CSB{CSB_year}_CSBID_pid_correspondence.parquet")
+    overlapping_fields_input_path = os.path.join(CSB_checks_folder, f"{state}_CSB{CSB_year}_overlapping_fields.parquet")
+    CSB_output_path = os.path.join(CSB_raster_output_folder, f"{state}_CSB{CSB_year}_raster_to_gSSURGO_grid.tif")
+    CSBID_pid_output_path = os.path.join(CSB_raster_output_folder, f"{state}_CSB{CSB_year}_CSBID_pid_correspondence.parquet")
     
     
     # Load CSB_dises joined datasets
     CSB_geometry = gpd.read_parquet(CSB_input_path)
-    
-    # Reproject geometry to the same CRS (NAD83/CONUS Albers)
-    CSB_geometry = CSB_geometry.to_crs(target_CRS)
-    
-    
-    
-    ### Clean CSB: CSB geometries contain overlaps which harms rasterization, we need to remove overlaps ###
-    gdf = CSB_geometry.copy()
-    gdf["geometry"] = gdf["geometry"].buffer(0)
-    gdf["area"] = gdf.geometry.area
 
-    # Overlay CSBID on itself. This will produce all overlapping polygons (including boundaries)
-    CSB_overlaps = gpd.overlay(gdf, gdf, how="intersection")
 
-    # Remove self-overlaps
-    CSB_overlaps = CSB_overlaps[CSB_overlaps["CSBID_1"] != CSB_overlaps["CSBID_2"]]
-
-    # Compute overlap ratio
-    # Determine the smaller area in each pair
-    CSB_overlaps["min_area"] = CSB_overlaps[["area_1", "area_2"]].min(axis=1)
-
-    # Compute overlap fraction relative to smaller polygon
-    CSB_overlaps["overlap_fraction"] = CSB_overlaps.geometry.area / CSB_overlaps["min_area"]
-
-    # Keep only those with overlap >= 50%
-    CSB_overlaps = CSB_overlaps[CSB_overlaps["overlap_fraction"] >= overlap_share_threshold]
-
-    # Keep only unique pairs (A,B) same as (B,A)
-    # Make a tuple of (smaller_area_parcel, larger_area_parcel)
-    CSB_overlaps["pair"] = CSB_overlaps.apply(
-        lambda row: (row["CSBID_1"], row["CSBID_2"]) if row["area_1"] <= row["area_2"] else (row["CSBID_2"], row["CSBID_1"]), axis=1)
-    # Drop duplicates
-    CSB_overlaps = CSB_overlaps.drop_duplicates(subset="pair").reset_index(drop=True)
-    # Assign smaller field IDs in each pair to CSBID_1 column and larger field IDs to CSBID_2
-    CSB_overlaps.loc[:, 'CSBID_1'] = CSB_overlaps["pair"].apply(lambda x: x[0] if pd.notna(x) else None)
-    CSB_overlaps.loc[:, 'CSBID_2'] = CSB_overlaps["pair"].apply(lambda x: x[1] if pd.notna(x) else None)
-    # Rename CSBID_1 and CSBID_2 accordingly
-    CSB_overlaps.rename(columns={"CSBID_1": "CSBID_smaller", "CSBID_2": "CSBID_larger"}, inplace = True)
-    # Keep only necessary columns
-    CSB_overlaps = CSB_overlaps[['CSBID_smaller', 'CSBID_larger', 'overlap_fraction']]
-    # Save a separate dataset with overlapping fields
-    CSB_overlaps.to_parquet(duplicating_fields_output_path, compression="zstd")
-    
-    # Clean CSB fields to remove overlapping fields
+    ### Clean CSB: CSB geometries contain overlaps which harms rasterization, we need to remove those overlaps ###
     # Extract all smaller parcel IDs from the pairs
-    overlap_smaller_CSBIDs = CSB_overlaps["CSBID_smaller"].unique()
+    overlap_smaller_CSBIDs = pd.read_parquet(overlapping_fields_input_path)
     # Drop rows whose CSBID is in smaller_ids and reset index
     CSB_geometry = (CSB_geometry[~CSB_geometry["CSBID"].isin(overlap_smaller_CSBIDs)]).reset_index(drop=True)
     
+    # In rasterio, if multiple polygons overlap a single pixel, the value from the last polygon in the input sequence is assigned to that pixel in the final raster
+    # If polygons overlap slightly, we want overlapping areas to take the value of the larger polygon
+    # Sort polygons by area in ascending order so that larger polygons are processed last
+    CSB_geometry = CSB_geometry.iloc[CSB_geometry.geometry.area.argsort()]
     
     
-    ### Process mukey raster file to create pairs of CSBID CSBID: mukeys (pixel values) ###
-    # CSBID CSBID → unique field integers
+    
+    ### Process mukey raster file to create mapping mukey (pixel value): CSB unique identifier ###
+    # Implement mapping CSBID → unique field integers
     id_map = {s: i for i, s in enumerate(CSB_geometry["CSBID"].unique())}
     CSB_geometry["pid"] = CSB_geometry["CSBID"].map(id_map)
     CSB_geometry[['CSBID', 'pid']].to_parquet(CSBID_pid_output_path, compression="zstd")
@@ -125,8 +89,8 @@ def CSB_duplicating_fields_rasterization(state, CSB_year, target_CRS, CSB_input_
 
 # Main code
 # Make sure "Rasterization to gSSURGO grid" folder exists
-Path(CSB_output_folder).mkdir(parents=True, exist_ok=True)
+Path(CSB_raster_output_folder).mkdir(parents=True, exist_ok=True)
 
 for CSB_year in CSB_years:
     for state in states:
-        CSB_duplicating_fields_rasterization(state, CSB_year, target_CRS, CSB_input_folder, soil_input_folder, CSB_output_folder)
+        CSB_rasterization(state, CSB_year, CSB_input_folder, CSB_checks_folder, soil_input_folder, CSB_raster_output_folder)

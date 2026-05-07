@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import geopandas as gpd
+from collections import defaultdict
 import rasterio
 from rasterio.features import rasterize
 import os
@@ -10,12 +11,13 @@ import gc
 # Import parameters from Snakemake
 regrow_input_folder = snakemake.params.regrow_input_dir
 rasterzied_regrow_input_folder = snakemake.params.rasterized_regrow_input_dir
+regrow_checks_folder = snakemake.params.regrow_checks_dir
 regrow_output_folder = snakemake.params.regrow_output_dir
 soil_input_folder =snakemake.params.soil_input_dir
 soil_output_folder = snakemake.params.soil_output_dir
 mukey_input_folder = snakemake.params.mukey_input_dir
 states = snakemake.params.states
-soil_depth_cm = snakemake.params.soil_depth_cm  # specify the maximum soil depth (in cm) to be used in variable calculations (weighting)
+soil_depth_cm = snakemake.params.soil_depth_cm  # maximum soil depth (in cm) to be used in variable calculations (weighting)
 
 
 def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_output_folder):
@@ -91,7 +93,7 @@ def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_o
     if (sacatalog.duplicated(subset=['areasymbol'], keep=False)).sum() != 0:
         print(f"WARNING DUPLICATING ROWS: {sacatalog[sacatalog.duplicated(subset=['areasymbol'], keep=False)]}")
     
-    # Keep only minimum soil restrictive layer for each cokey
+    # Keep only the value of top soil restrictive layer for each cokey
     corestrictions = corestrictions.groupby("cokey")["resdept_r"].min().reset_index()
     
     ## gSSURGO dataset merging
@@ -104,35 +106,35 @@ def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_o
         print(f"WARNING DUPLICATING ROWS: {mapunit_component_corestr_legend_sacatalog[mapunit_component_corestr_legend_sacatalog.duplicated(subset=['mukey', 'cokey'], keep=False)]}")
     
     # Create integrated soil dataset by merging all datasets with each other in the following order: 
-    # 1) component, chorizon and corerestictions on the key "cokey"
+    # 1) component, chorizon and corestictions on the key "cokey"
     # 2) the mapunit, merged dataset from (1), and muaggatt on the key "mukey"
     # 3) the merged dataset from (2), legend and sacatalog on the keys "lkey" and "areasymbol"
     component_chorizon = component.merge(chorizon, on="cokey", how="left")
-    component_chorizon_corerestictions = component_chorizon.merge(corestrictions, on="cokey", how="left")
+    component_chorizon_corestictions = component_chorizon.merge(corestrictions, on="cokey", how="left")
 
     mapunit_component_chorizon = mapunit.merge(component_chorizon, on="mukey", how="left")
-    mapunit_component_chorizon_corerestictions = mapunit.merge(component_chorizon_corerestictions, on="mukey", how="left")
-    mapunit_component_chorizon_corerestictions_muaggatt = mapunit_component_chorizon_corerestictions.merge(muaggatt, on="mukey", how="left")
+    mapunit_component_chorizon_corestictions = mapunit.merge(component_chorizon_corestictions, on="mukey", how="left")
+    mapunit_component_chorizon_corestictions_muaggatt = mapunit_component_chorizon_corestictions.merge(muaggatt, on="mukey", how="left")
 
-    mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog = mapunit_component_chorizon_corerestictions_muaggatt.merge(legend, on="lkey", how="left").merge(sacatalog, on="areasymbol", how="left")
+    mapunit_component_chorizon_corestictions_muaggatt_legend_sacatalog = mapunit_component_chorizon_corestictions_muaggatt.merge(legend, on="lkey", how="left").merge(sacatalog, on="areasymbol", how="left")
     
     # Check duplicates
-    if (mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog.duplicated(subset=['mukey', 'cokey', 'hzdept_r'], keep=False)).sum() != 0:
-        print(f"WARNING DUPLICATING ROWS: {mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog[mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog.duplicated(subset=['mukey', 'cokey', 'hzdept_r'], keep=False)]}") 
+    if (mapunit_component_chorizon_corestictions_muaggatt_legend_sacatalog.duplicated(subset=['mukey', 'cokey', 'hzdept_r'], keep=False)).sum() != 0:
+        print(f"WARNING DUPLICATING ROWS: {mapunit_component_chorizon_corestictions_muaggatt_legend_sacatalog[mapunit_component_chorizon_corestictions_muaggatt_legend_sacatalog.duplicated(subset=['mukey', 'cokey', 'hzdept_r'], keep=False)]}") 
     
     # Save the integrated soil dataset
     integrated_soil_output_path = os.path.join(soil_output_folder, f"{state}_integrated_soil_variables.parquet")
-    mapunit_component_chorizon_corerestictions_muaggatt_legend_sacatalog.to_parquet(integrated_soil_output_path, compression="zstd")
+    mapunit_component_chorizon_corestictions_muaggatt_legend_sacatalog.to_parquet(integrated_soil_output_path, compression="zstd")
     
     
-    ## Creating soil variables (the list of variables is provided by the soil team)
+    ## Create soil variables (the list of variables is provided by the soil team)
     top = 0
     bottom = soil_depth_cm
     
-    # Set an integrated mukey dataset for spatial join
+    # Set a mapunit dataset for spatial join
     mukey_soil_variables = mapunit.copy()
     
-    # Variables which values are taken only from the dominant component
+    # Variables which values are taken from the dominant component
     dominant_component = (
         mapunit_component_corestr_legend_sacatalog[mapunit_component_corestr_legend_sacatalog["majcompflag"] == "Yes"]
         .sort_values(["mukey", "comppct_r"], ascending=[True, False])
@@ -150,7 +152,7 @@ def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_o
                                     "saverest":"saverest_dominant"}, inplace=True)
 
     # Add dominant component variables to the integrated dataset
-    mukey_soil_variables = mukey_soil_variables.merge(dominant_component.filter(regex="dominant|mukey"), on="mukey", how="left")
+    mukey_soil_variables = mukey_soil_variables.merge(dominant_component.filter(regex="mukey|dominant"), on="mukey", how="left")
     
     # Add variables that need to be weighted by soil layer composition: clay, sand, and pH
     mapunit_component_chorizon_copy = mapunit_component_chorizon.copy()
@@ -182,7 +184,7 @@ def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_o
             f"sandtotal_r_{soil_depth_cm}cm": horizon_weighted_target_depth(x, "sandtotal_r"),
             f"ph1to1h2o_r_{soil_depth_cm}cm": horizon_weighted_target_depth(x, "ph1to1h2o_r"),
             f"om_r_{soil_depth_cm}cm": horizon_weighted_target_depth(x, "om_r")
-        }))
+        }), include_groups=False)
         .reset_index())
     
     # Component-weighted mean for each mukey (component-weighted mean using comppct_r)
@@ -207,7 +209,7 @@ def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_o
             f"sandtotal_r_{soil_depth_cm}cm_weighted": component_weighted_mean(x, f"sandtotal_r_{soil_depth_cm}cm"),
             f"ph1to1h2o_r_{soil_depth_cm}cm_weighted": component_weighted_mean(x, f"ph1to1h2o_r_{soil_depth_cm}cm"),
             f"om_r_{soil_depth_cm}cm_weighted": component_weighted_mean(x, f"om_r_{soil_depth_cm}cm")
-        }))
+        }), include_groups=False)
         .reset_index()
     )
 
@@ -216,16 +218,21 @@ def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_o
 
     # Add slope data to the integrated dataset
     mukey_soil_variables = mukey_soil_variables.merge(muaggatt, on="mukey", how="left")
+    
+    # Check duplicate mukeys
+    if (mukey_soil_variables.duplicated(subset=['mukey'], keep=False)).sum() != 0:
+        print(f"WARNING DUPLICATING ROWS: {mukey_soil_variables[mukey_soil_variables.duplicated(subset=['mukey'], keep=False)]}")
 
     return mukey_soil_variables
 
 
-def merge_regrow_mukey_soilvars(state, mukey_soil_variables, regrow_input_folder, rasterzied_regrow_input_folder, regrow_output_folder):
+def merge_regrow_mukey_soilvars(state, mukey_soil_variables, regrow_input_folder, rasterzied_regrow_input_folder, regrow_checks_folder, mukey_input_folder, regrow_output_folder):
     
     # Paths to input and output files
     regrow_table_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_table.parquet")
     regrow_raster_input_path = os.path.join(rasterzied_regrow_input_folder, f"{state}_regrow_raster_to_gSSURGO_grid.tif")
-    duplicating_fields_input_path = os.path.join(rasterzied_regrow_input_folder, f"{state}_regrow_duplicating_fields.parquet")
+    gssurgo_mukey_input_path = os.path.join(mukey_input_folder, "gSSURGO Mukey Grid", f"{state}_MURASTER_30m.tif")
+    overlapping_fields_input_path = os.path.join(regrow_checks_folder, f"{state}_regrow_overlapping_fields.parquet")
     fieldID_pid_input_path = os.path.join(rasterzied_regrow_input_folder, f"{state}_regrow_fieldID_pid_correspondence.parquet")
     output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_8_table.parquet")
     
@@ -243,63 +250,65 @@ def merge_regrow_mukey_soilvars(state, mukey_soil_variables, regrow_input_folder
     id_map = pd.read_parquet(fieldID_pid_input_path)
     id_map = id_map.set_index("pid")
 
-    # Open gSSURGO mukey raster
-    with rasterio.open(f"{mukey_input_folder}/gSSURGO Mukey Grid/{state}_MURASTER_30m.tif") as src_gSSURGO:
-        # Read gSSURGO mukey raster
-        mukey_raster = src_gSSURGO.read(1)
-
-    # Open rasterized Regrow
-    with rasterio.open(regrow_raster_input_path) as src_regrow:
-        # Read rasterized Regrow
+    # Read both regrow and mukey rasters at once
+    with rasterio.open(gssurgo_mukey_input_path) as src_mukey, \
+        rasterio.open(regrow_raster_input_path) as src_regrow:
+        mukey_raster  = src_mukey.read(1)
         regrow_raster = src_regrow.read(1)
 
     # Extract pixel values for each field
     # Indices of all pixels that belong to some field
-    rows, cols = np.where(regrow_raster >= 0)
-    field_pids = regrow_raster[rows, cols]
-    values = mukey_raster[rows, cols].astype(str)
+    mask = regrow_raster >= 0
+    field_pids = regrow_raster[mask]
+    mukeys = mukey_raster[mask].astype(str)
     
     # Remove raster files from the memory
     del mukey_raster, regrow_raster
     gc.collect()
 
     # Build correnspondence between field_id and pixel values
-    fieldID_mukeys = pd.DataFrame({
-    "field_id": id_map.loc[field_pids, "field_id"].values,
-    "value": values}
-    ).groupby("field_id")["value"].apply(list)
+    fieldID_mukeys = defaultdict(list)
+    field_ids = id_map.loc[field_pids, "field_id"].values
+
+    for field_id, mukey in zip(field_ids, mukeys):
+        fieldID_mukeys[field_id].append(mukey)
+
+    del field_pids, mukeys
+    gc.collect()
 
 
 
     ### Compute soil variables for each Regrow field ###
-    # Split numerical and categorical columns
-    num_cols = mukey_soil_variables.select_dtypes(include='number').columns.drop(['mukey', 'lkey'], errors='ignore')
-    cat_cols = mukey_soil_variables.select_dtypes(exclude='number').columns.drop(['mukey', 'lkey'], errors='ignore')
-
     # Index soil dataset to speed up searching
     soil_indexed = mukey_soil_variables.set_index("mukey")
+    
+    # Split numerical and categorical columns
+    num_cols = mukey_soil_variables.select_dtypes(include='number').columns.drop(['mukey'], errors='ignore')
+    cat_cols = mukey_soil_variables.select_dtypes(exclude='number').columns.drop(['mukey'], errors='ignore')
 
     # Compute soil variables for each Regrow field by taking average (mode) across all mukeys within a given field
     rows = []
-    for fieldID, mukeys in fieldID_mukeys.items():
-        if mukeys:
-            sub = soil_indexed.reindex(mukeys).dropna(how="all")
-            if sub.empty:
-                continue
+    for field_id, mukeys in fieldID_mukeys.items():
+        if not mukeys:
+            continue
+        
+        sub = soil_indexed.reindex(mukeys).dropna(how="all")
+        if sub.empty:
+            continue
 
-            num_mean = sub[num_cols].mean()
-            cat_mode = sub[cat_cols].apply(lambda x: x.dropna().value_counts().idxmax() if not x.dropna().empty else None)
+        num_mean = sub[num_cols].mean()
+        cat_mode = sub[cat_cols].apply(lambda x: x.dropna().value_counts().idxmax() if not x.dropna().empty else None)
 
-            row = pd.concat([num_mean, cat_mode])
-            row["field_id"] = fieldID
+        row = pd.concat([num_mean, cat_mode])
+        row["field_id"] = field_id
 
-            rows.append(row)
+        rows.append(row)
     
     soil_data_for_regrow = pd.DataFrame(rows)
-    regrow_soil = regrow_soil.merge(soil_data_for_regrow, on='field_id', how="left")
+    regrow_soil = regrow_soil.merge(soil_data_for_regrow, on="field_id", how="left")
     
     # Map each smaller_field_id to its corresponding larger_field_id and then copy the values from the larger fields back into the target dataset
-    regrow_overlaps = pd.read_parquet(duplicating_fields_input_path)
+    regrow_overlaps = pd.read_parquet(overlapping_fields_input_path)
     regrow_soil = regrow_soil.set_index("field_id")
     regrow_soil.loc[regrow_overlaps["field_id_smaller"]] = regrow_soil.loc[regrow_overlaps["field_id_larger"]].values
     regrow_soil = regrow_soil.reset_index()
@@ -317,4 +326,5 @@ def merge_regrow_mukey_soilvars(state, mukey_soil_variables, regrow_input_folder
 for state in states:
     
     mukey_soil_variables = process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_output_folder)
-    merge_regrow_mukey_soilvars(state, mukey_soil_variables, regrow_input_folder, rasterzied_regrow_input_folder, regrow_output_folder)
+    
+    merge_regrow_mukey_soilvars(state, mukey_soil_variables, regrow_input_folder, rasterzied_regrow_input_folder, regrow_checks_folder, mukey_input_folder, regrow_output_folder)

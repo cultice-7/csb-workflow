@@ -30,6 +30,9 @@ def join_regrow_shape_table(state, target_CRS, regrow_geometry_input_folder, reg
 
     # Reproject field geometry to NAD83/Conus Albers
     regrow_shape_reproj = regrow_shape.to_crs(target_CRS)
+    
+    # Buffer geometry to address invalid geometries (by reconstructing them)
+    regrow_shape_reproj["geometry"] = regrow_shape_reproj["geometry"].buffer(0)
 
     # Rename the geometry column "boundary_id" to "field_id"
     regrow_shape_reproj.rename(columns={'boundary_id': 'field_id'}, inplace = True)

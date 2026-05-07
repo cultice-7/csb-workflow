@@ -1,6 +1,14 @@
 import geopandas as gpd
 import os
 
+# Import parameters from Snakemake
+CSB_input_folder = snakemake.params.CSB_input_dir
+CSB_output_folder = snakemake.params.CSB_output_dir
+states = snakemake.params.states
+states_codes = snakemake.params.states_codes
+CSB_years = snakemake.params.CSB_years
+
+
 # Clip each 8‑year CSB file by state
 def clip_raw_CSB(states, state_code, CSB_year, CSB_input_folder, CSB_output_folder):
     
@@ -25,13 +33,6 @@ def clip_raw_CSB(states, state_code, CSB_year, CSB_input_folder, CSB_output_fold
 
 
 # Main code
-# Import parameters from Snakemake
-CSB_input_folder = snakemake.params.csb_input_dir
-CSB_output_folder = snakemake.params.csb_output_dir
-states = snakemake.params.states
-states_codes = snakemake.params.states_codes
-CSB_years = snakemake.params.CSB_years
-
 for CSB_year in CSB_years:
     for state_code in states_codes:
         clip_raw_CSB(states, state_code, CSB_year, CSB_input_folder, CSB_output_folder)

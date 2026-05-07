@@ -16,21 +16,18 @@ def clean_regrow_table(state, regrow_table_input_folder, regrow_table_output_fol
     df = pd.read_parquet(regrow_table_input_path)
     
     print("State name:", state)
-    # Compute the number of duplicates and drop them
-    print("Number of unique IDs:", df['boundary_id'].nunique())
-    print("Number of duplicating rows:", df.duplicated().sum())
+    # Drop completely duplicate rows
     df.drop_duplicates(keep = 'first', inplace = True)
      
-    # Check missing data and drop all rows with completely missing data
-    cols_to_check_nan = df.columns.difference(['boundary_id'])
-    print("Number of rows with missing main crop data:", df[['crop', 'crop_plant_date', 'crop_harvest_date']].isna().all(axis=1).sum())
-    print("Number of rows with missing monitor data:", df[cols_to_check_nan].isna().all(axis=1).sum())
+    # Drop rows with completely missing monitor data
+    cols_to_check_nan = df.columns.difference(['field_id'])
     df = df.dropna(subset=cols_to_check_nan, how='all')
 
     df.reset_index(drop = True, inplace = True)
 
-    #Rename columns
-    df.rename(columns={'PostHarvest_Intensity': 'PHtill', 
+    # Rename columns
+    df.rename(columns={'boundary_id': 'field_id',
+                    'PostHarvest_Intensity': 'PHtill', 
                     'PostHarvest_till_start': 'PHtill_start',
                     'PostHarvest_till_end': 'PHtill_end',
                     'PostHarvest_till_residue_conf': 'PHtill_conf',
@@ -54,27 +51,27 @@ def clean_regrow_table(state, regrow_table_input_folder, regrow_table_output_fol
     df[cols_to_convert] = df[cols_to_convert].apply(pd.to_datetime, errors = 'coerce')
 
 
-    # Join multiple activities within one cycle together
-    # Columns determining duplicate entires
-    key_cols = ['boundary_id', 'crop', 'crop_start', 'crop_end', 'crop_conf']
+    # Aggregate multiple activities within one cycle together
+    # Columns determining cultivation cycle
+    key_cols = ['field_id', 'crop', 'crop_start', 'crop_end', 'crop_conf']
 
-    # Extract pre-plant till, post-harvest till and cover crop columns (we aggregate their values to deal with duplicates)
+    # List pre-plant till, post-harvest till and cover crop columns (aggregate their values if there are multiple acitivities within a single cycle)
     activity_cols = ["PPtill", "PHtill", "cover"]
 
-    # Extract corresponding date and confidence columns for activity_cols (we aggregate their values to deal with duplicates)
+    # List corresponding date and confidence columns for activity_cols (aggregate their values if there are multiple acitivities within a single cycle)
     numeric_ops = ["start", "end", "conf"]
     numeric_cols = [f"{col}_{op}" for col in activity_cols for op in numeric_ops]
 
-    #  Extract corresponding cycle_start/end columns (we aggregate their values to deal with duplicates)
+    # List corresponding cycle_start/end columns (aggregate their values if there are multiple acitivities within a signle cycle)
     numeric_cols += ["cycle_start", "cycle_end"]
 
-    # Split duplicate vs non-duplicate rows
+    # Split rows with duplicate main crops into a separate dataset
     dup_mask = df.duplicated(subset=key_cols, keep=False)
     df_duplicates = df[dup_mask].copy()
     df_non_duplicates = df[~dup_mask].copy()
 
-    # Function to join land management activity values based on start/end dates
-    def join_activity(values, start_dates, end_dates):
+    # Functions to aggregate land management activities with multiple values within a single cultivation cycle
+    def aggregate_activity_values(values, start_dates, end_dates):
         """
         - If all start/end dates identical and values identical -> keep value
         - If all start/end identical but values differ -> NaN
@@ -97,29 +94,29 @@ def clean_regrow_table(state, regrow_table_input_folder, regrow_table_output_fol
 
         return ' & '.join(values.astype(str))
 
-    # Aggregate duplicate rows
     def aggregate_group(g):
         result = {}
 
         # Activity columns
         for col in activity_cols:
-            # compute new start/end
+            # Compute start/end date and conf value of aggregated activities
             result[f"{col}_start"] = g[f"{col}_start"].min(skipna=True)
             result[f"{col}_end"] = g[f"{col}_end"].max(skipna=True)
             result[f"{col}_conf"] = g[f"{col}_conf"].max(skipna=True)
 
-            # join activity values according to dates
-            result[col] = join_activity(g[col], g[f"{col}_start"], g[f"{col}_end"])
+            # Aggregate activity values according to dates
+            result[col] = aggregate_activity_values(g[col], g[f"{col}_start"], g[f"{col}_end"])
 
-        # Cycle columns: min/max
+        # Compute start/end dates of cultivation cycles containing aggregated activities
         result["cycle_start"] = g["cycle_start"].min(skipna=True)
         result["cycle_end"] = g["cycle_end"].max(skipna=True)
 
         return pd.Series(result)
 
+    # Process entries with multiple land management activities within a single cultivation cycle
     df_processed = df_duplicates.groupby(key_cols).apply(aggregate_group).reset_index()
 
-    # Merge back with non-duplicated rows
+    # Merge back with non-duplicate rows
     df = pd.concat([df_non_duplicates, df_processed], ignore_index=True)
 
 
@@ -128,37 +125,37 @@ def clean_regrow_table(state, regrow_table_input_folder, regrow_table_output_fol
     df['end_year'] = df['cycle_end'].dt.year
     df['cycle_length'] = (df['cycle_end'] - df['cycle_start']).dt.days
 
-    # Sort dataset by boundary_id, start_year, plant_date (so that earlier activities within same year come first)
-    df.sort_values(by = ['boundary_id', 'start_year', 'cycle_start'], inplace = True)
+    # Sort dataset by field_id, start_year, plant_date (so that earlier cultivation cycles within same year come first)
+    df.sort_values(by = ['field_id', 'start_year', 'cycle_start'], inplace = True)
     df.reset_index(drop = True, inplace = True)
 
-    # Compute the number of cycles for each field in each year
-    df['cycle_count'] = df.groupby(['boundary_id', 'end_year']).cumcount() + 1
+    # Compute the number of cultivation cycles for each field in each year
+    df['cycle_count'] = df.groupby(['field_id', 'end_year']).cumcount() + 1
 
-    # Delete observations with more than 3 cycles per year
-    df.drop(df[df['cycle_count'] > 3].index, inplace = True)
+    # Keep observations with not more than 3 cultivation cycles per calendar year
+    df = df[df['cycle_count'] <= 3]
     df.reset_index(drop = True, inplace = True)
 
-    # Create year_cycle identifier
+    # Create calendar year_cycle identifier
     df['year_cycle'] = df['end_year'].astype(str).str[2:] + '_' + df['cycle_count'].astype(str)
 
     # Reshape post harvest tillage from long to wide
-    df_PHtill_wide = df.pivot(index = 'boundary_id', columns = 'year_cycle', values = ['PHtill', 'PHtill_start', 'PHtill_end', 'PHtill_conf'])
+    df_PHtill_wide = df.pivot(index = 'field_id', columns = 'year_cycle', values = ['PHtill', 'PHtill_start', 'PHtill_end', 'PHtill_conf'])
     df_PHtill_wide.reset_index(inplace = True)
     df_PHtill_wide.columns = ['field_id'] + ['{}_{}'.format(col[0], col[1]) for col in df_PHtill_wide.columns[1:]]
 
     # Reshape cover crop from long to wide
-    df_cover_wide = df.pivot(index = 'boundary_id', columns = 'year_cycle', values = ['cover', 'cover_start', 'cover_end', 'cover_conf'])
+    df_cover_wide = df.pivot(index = 'field_id', columns = 'year_cycle', values = ['cover', 'cover_start', 'cover_end', 'cover_conf'])
     df_cover_wide.reset_index(inplace = True)
     df_cover_wide.columns = ['field_id'] + ['{}_{}'.format(col[0], col[1]) for col in df_cover_wide.columns[1:]]
 
     # Reshape pre-plant tillage from long to wide
-    df_PPtill_wide = df.pivot(index = 'boundary_id', columns = 'year_cycle', values = ['PPtill', 'PPtill_start', 'PPtill_end', 'PPtill_conf']) 
+    df_PPtill_wide = df.pivot(index = 'field_id', columns = 'year_cycle', values = ['PPtill', 'PPtill_start', 'PPtill_end', 'PPtill_conf']) 
     df_PPtill_wide.reset_index(inplace = True)
     df_PPtill_wide.columns = ['field_id'] + ['{}_{}'.format(col[0], col[1]) for col in df_PPtill_wide.columns[1:]]
 
     # Reshape main crop from long to wide
-    df_crop_wide = df.pivot(index = 'boundary_id', columns = 'year_cycle', values = ['crop', 'crop_start', 'crop_end', 'crop_conf'])
+    df_crop_wide = df.pivot(index = 'field_id', columns = 'year_cycle', values = ['crop', 'crop_start', 'crop_end', 'crop_conf'])
     df_crop_wide.reset_index(inplace = True)
     df_crop_wide.columns = ['field_id'] + ['{}_{}'.format(col[0], col[1]) for col in df_crop_wide.columns[1:]]
 
@@ -179,11 +176,10 @@ def clean_regrow_table(state, regrow_table_input_folder, regrow_table_output_fol
         "turnip": 247, "cranberry": 250, "non_cropland": 999, "berry": 999
     }  
 
-    df_crop_wide[df_crop_wide.filter(like='crop').columns] = df_crop_wide.filter(like='crop').replace({None: np.nan})
     df_crop_wide.replace(main_crop_map, inplace = True)
     # Select columns containing "crop_1" or "crop_2"
-    cols_to_convert = df_crop_wide.columns[df_crop_wide.columns.str.contains("crop_1|crop_2")]
-    # Convert to numeric and then to nullable Int
+    cols_to_convert = df_crop_wide.columns[df_crop_wide.columns.str.startswith(("crop_1", "crop_2"))]
+    # Convert to numeric and then to nullable Int16
     df_crop_wide[cols_to_convert] = (df_crop_wide[cols_to_convert].apply(pd.to_numeric, errors="coerce").astype("Int16"))
 
     # Recode tillage names to numerical codes 
@@ -200,20 +196,17 @@ def clean_regrow_table(state, regrow_table_input_folder, regrow_table_output_fol
         "TILLAGE_INTENSITY_NO_TILLAGE_DATA": np.nan
     }
 
-    # Replace None with Nan
-    df_PHtill_wide[df_PHtill_wide.filter(like='till').columns] = df_PHtill_wide.filter(like='till').replace({None: np.nan})
     df_PHtill_wide.replace(tillage_map, inplace = True)
     # Select columns containing "PHtill_1" or "PHtill_2"
-    cols_to_convert = df_PHtill_wide.columns[df_PHtill_wide.columns.str.contains("PHtill_1|PHtill_2")]
-    # Convert to numeric and then to nullable Int
+    cols_to_convert = df_PHtill_wide.columns[df_PHtill_wide.columns.str.startswith(("PHtill_1|PHtill_2"))]
+    # Convert to numeric and then to nullable Int16
     df_PHtill_wide[cols_to_convert] = (df_PHtill_wide[cols_to_convert].apply(pd.to_numeric, errors="coerce").astype("Int16"))
 
-    # Replace None with Nan
-    df_PPtill_wide[df_PPtill_wide.filter(like='till').columns] = df_PPtill_wide.filter(like='till').replace({None: np.nan})
+
     df_PPtill_wide.replace(tillage_map, inplace = True)
     # Select columns containing "PPtill_1" or "PPtill_2"
-    cols_to_convert = df_PPtill_wide.columns[df_PPtill_wide.columns.str.contains("PPtill_1|PPtill_2")]
-    # Convert to numeric and then to nullable Int
+    cols_to_convert = df_PPtill_wide.columns[df_PPtill_wide.columns.str.startswith(("PPtill_1|PPtill_2"))]
+    # Convert to numeric and then to nullable Int16
     df_PPtill_wide[cols_to_convert] = (df_PPtill_wide[cols_to_convert].apply(pd.to_numeric, errors="coerce").astype("Int16"))
 
 
@@ -226,11 +219,10 @@ def clean_regrow_table(state, regrow_table_input_folder, regrow_table_output_fol
         "GREEN_COVER_CLASS_NOT_APPLICABLE": np.nan
     }
 
-    df_cover_wide[df_cover_wide.filter(like='cover').columns] = df_cover_wide.filter(like='cover').replace({None: np.nan})
     df_cover_wide.replace(cover_crop_map, inplace = True)
     # Select columns containing "cover_1" or "cover_2"
-    cols_to_convert = df_cover_wide.columns[df_cover_wide.columns.str.contains("cover_1|cover_2")]
-    # Convert to numeric and then to nullable Int
+    cols_to_convert = df_cover_wide.columns[df_cover_wide.columns.str.startswith(("cover_1|cover_2"))]
+    # Convert to numeric and then to nullable Int16
     df_cover_wide[cols_to_convert] = (df_cover_wide[cols_to_convert].apply(pd.to_numeric, errors="coerce").astype("Int16"))
 
 
@@ -250,6 +242,7 @@ def clean_regrow_table(state, regrow_table_input_folder, regrow_table_output_fol
     regrow_cleaned_table.to_parquet(regrow_table_output_path, compression="zstd")
     
     return regrow_cleaned_table.columns, regrow_table_output_path
+
 
 # Main script
 # After cleaning, unify column list in all cleaned regrow table files to ensure consistency 
