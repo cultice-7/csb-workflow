@@ -17,8 +17,8 @@ for year in CSB_years:
         
         CSB_shape_input_path = os.path.join(CSB_input_folder, f"{state}_CSB{year}_CSBID_geometry.parquet")
         CSB_table_input_path = os.path.join(CSB_input_folder, f"{state}_CSB{year}_table.parquet")
-        output_path_spatial = os.path.join(CSB_output_folder, f"{state}_CSB{year}_supplement_5_spatial.parquet")
-        output_path_table = os.path.join(CSB_output_folder, f"{state}_CSB{year}_supplement_5_table.parquet")
+        output_path_spatial = os.path.join(CSB_output_folder, f"{state}_CSB{year}_neighbor_field_mgmt_spatial.parquet")
+        output_path_table = os.path.join(CSB_output_folder, f"{state}_CSB{year}_neighbor_field_mgmt_table.parquet")
         
         # Load CSB data
         csb_shape = gpd.read_parquet(CSB_shape_input_path)

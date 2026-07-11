@@ -30,12 +30,12 @@ rule all:
         expand("data/edited/Regrow/{state}_regrow_dises_table.parquet", state=STATES_DISES),
         # CSB-DISES spatial join
         expand("data/edited/CSB/{state}_CSB{years}_dises_table.parquet", state=STATES_DISES, years=CSB_YEARS),
-        # Regrow supplement tables 1-8
-        expand("data/edited/Regrow/{state}_regrow_supplement_{n}_table.parquet", state=STATES, n=list(range(1, 7)) + list(range(8, 9))),
-        expand("data/edited/Regrow/{state}_regrow_supplement_{n}_table_reduced.parquet", state=STATES, n=7),
-        # CSB supplement tables 1-8
-        expand("data/edited/CSB/{state}_CSB{years}_supplement_{n}_table.parquet", state=STATES, years=CSB_YEARS, n=list(range(1, 7)) + list(range(8, 9))),
-        expand("data/edited/CSB/{state}_CSB{years}_supplement_{n}_table_reduced.parquet", state=STATES, years=CSB_YEARS, n=7)
+        # Regrow supplement tables
+        expand("data/edited/Regrow/{state}_regrow_{supp}_table.parquet", state=STATES, supp=['census_tract', 'elevation_slope', 'watershed', 'nearest_roads', 'neighbor_field_mgmt', 'weather', 'soil_composition', 'ag_census']),
+        expand("data/edited/Regrow/{state}_regrow_crop_prices_table_reduced.parquet", state=STATES),
+        # CSB supplement tables
+        expand("data/edited/CSB/{state}_CSB{years}_{supp}_table.parquet", state=STATES, years=CSB_YEARS, supp=['census_tract', 'elevation_slope', 'watershed', 'nearest_roads', 'neighbor_field_mgmt', 'weather', 'soil_composition', 'ag_census']),
+        expand("data/edited/CSB/{state}_CSB{years}_crop_prices_table_reduced.parquet", state=STATES, years=CSB_YEARS)
 
 
 # =============================================================================
@@ -210,7 +210,9 @@ rule clip_elevation_slope:
         elevation_output_dir = config["elevation"]["processed_data_dir"],
         slope_output_dir = config["slope"]["processed_data_dir"],
         states = STATES,
-        target_CRS = config["global_vars"]["target_CRS"]
+        target_CRS = config["global_vars"]["target_CRS"],
+        state_buffer_margin = config["elevation"]["state_buffer_margin"]
+        
     script:
         "scripts/clip_elevation_slope.py"
 
@@ -264,7 +266,8 @@ rule clip_gSSURGO_mukey_rasters:
         soil_input_dir = config["soil"]["processed_data_dir"],
         soil_output_dir = config["soil"]["final_dir"],
         states = STATES,
-        target_CRS = config["global_vars"]["target_CRS"]
+        target_CRS = config["global_vars"]["target_CRS"],
+        state_buffer_margin = config["soil"]["state_buffer_margin"]
     script:
         "scripts/clip_gSSURGO_mukey_rasters.py"
 
@@ -308,15 +311,15 @@ rule join_dises_shape_table:
         "scripts/join_dises_shape_table.py"
 
 # Join Regrow Updates (adding 2025 data)
-rule join_regrow_updates:
+rule join_regrow_2025_updates:
     input:
         regrow_raw_geometry_2014_2024 = expand("data/Regrow/2014-2024/{state}_field_boundaries.geojson", state=STATES),
         regrow_raw_geometry_2025 = expand("data/Regrow/2025/{state}_2025_boundaries.geojson", state=STATES),
         regrow_raw_table_2014_2024 = expand("data/Regrow/2014-2024/Monitor_data_{state}.csv", state=config["regrow"]["states_monitor"]),
         regrow_raw_table_2025 = expand("data/Regrow/2025/{state}_2025_Data.csv", state=STATES)
     output:
-        regrow_merged_geometry = expand("data/Regrow/{state}_field_boundaries.parquet", state=STATES),
-        regrow_concatenated_table = expand("data/Regrow/Monitor_data_{state}.parquet", state=config["regrow"]["states_monitor"])
+        regrow_merged_geometry = expand("data/Regrow/{state}_field_boundaries_2014-2025.parquet", state=STATES),
+        regrow_concatenated_table = expand("data/Regrow/Monitor_data_{state}_2014-2025.parquet", state=config["regrow"]["states_monitor"])
     params:
         input_2014_2024_dir = config["regrow"]["raw_data_2014_2024_dir"],
         input_2025_dir = config["regrow"]["raw_data_2025_dir"],
@@ -325,15 +328,30 @@ rule join_regrow_updates:
         states_monitor = config["regrow"]["states_monitor"],
         target_CRS = config["global_vars"]["target_CRS"]
     script:
-        "scripts/join_regrow_updates.py"
+        "scripts/join_regrow_2025_updates.py"
+
+# Clip and save a separate file with geometries
+rule split_save_regrow_geometry:
+    input:
+        regrow_merged_geometry = expand("data/Regrow/{state}_field_boundaries_2014-2025.parquet", state=STATES),
+    output:
+        regrow_fieldID_geometry_parquet = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=STATES),
+        regrow_fieldID_geometry_gpkg = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.gpkg", state=STATES)
+    params:
+        input_geometry_dir = config["regrow"]["raw_data_dir"],
+        output_dir = config["regrow"]["final_dir"],
+        states = STATES,
+        target_CRS = config["global_vars"]["target_CRS"]
+    script:
+        "scripts/split_save_regrow_geometry.py"
 
 # Split Regrow Monitor data by state
 rule split_regrow_monitor_by_state:
     input:
-        regrow_merged_geometry = expand("data/Regrow/{state}_field_boundaries.parquet", state=STATES),
-        regrow_concatenated_table = expand("data/Regrow/Monitor_data_{state}.parquet", state=config["regrow"]["states_monitor"])
+        regrow_merged_geometry = expand("data/Regrow/{state}_field_boundaries_2014-2025.parquet", state=STATES),
+        regrow_concatenated_table = expand("data/Regrow/Monitor_data_{state}_2014-2025.parquet", state=config["regrow"]["states_monitor"])
     output:
-        regrow_table_raw = expand("data/Regrow/{state}_Monitor_data.parquet", state=STATES)
+        regrow_table_raw = expand("data/Regrow/{state}_Monitor_data_2014-2025.parquet", state=STATES)
     params:
         input_dir = config["regrow"]["raw_data_dir"],
         output_dir = config["regrow"]["raw_data_dir"],
@@ -345,7 +363,7 @@ rule split_regrow_monitor_by_state:
 # Clean Regrow data table (Monitor data)
 rule clean_regrow_table:
     input:
-        regrow_table_raw = expand("data/Regrow/{state}_Monitor_data.parquet", state=STATES)
+        regrow_table_raw = expand("data/Regrow/{state}_Monitor_data_2014-2025.parquet", state=STATES)
     output:
         regrow_table_wide = expand("data/edited/Regrow/{state}_regrow_monitor_wide_coded.parquet", state=STATES)
     params:
@@ -358,14 +376,12 @@ rule clean_regrow_table:
 # Join Regrow geometry with attribute tables
 rule join_regrow_shape_table:
     input:
-        regrow_boundary = expand("data/Regrow/{state}_field_boundaries.parquet", state=STATES),
+        regrow_fieldID_geometry_parquet = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=STATES),
         regrow_table_wide = expand("data/edited/Regrow/{state}_regrow_monitor_wide_coded.parquet", state=STATES)
     output:
-        regrow_fieldID_geometry_parquet = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=STATES),
-        regrow_fieldID_geometry_gpkg = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.gpkg", state=STATES),
         regrow_table = expand("data/edited/Regrow/{state}_regrow_table.parquet", state=STATES)
     params:
-        input_geometry_dir = config["regrow"]["raw_data_dir"],
+        input_geometry_dir = config["regrow"]["final_dir"],
         input_table_dir = config["regrow"]["final_dir"],
         output_dir = config["regrow"]["final_dir"],
         states = STATES,
@@ -401,7 +417,8 @@ rule clip_cdl_rasters:
         CDL_output_dir = config["cdl"]["final_dir"],
         states = STATES,
         years = YEARS,
-        target_CRS = config["global_vars"]["target_CRS"]
+        target_CRS = config["global_vars"]["target_CRS"],
+        state_buffer_margin = config["cdl"]["state_buffer_margin"]
     script:
         "scripts/clip_cdl_rasters.py"
 
@@ -598,14 +615,14 @@ rule join_csb_dises:
 # Adding supplementary farmland characteristics
 # =============================================================================
 
-#---# Supplementary data 1: Census tract data
-rule join_regrow_supplement_1:
+#---# Supplementary data: census_tract
+rule join_regrow_census_tract:
     input:
         regrow_geometry = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=STATES),
         tract_boundaries = "data/Census/census_tract/cb_2023_us_tract_500k.shp"
     output:
-        #regrow_supplement_1_shape = expand("data/edited/Regrow/{state}_regrow_supplement_1_spatial.parquet", state=STATES),
-        regrow_supplement_1_table = expand("data/edited/Regrow/{state}_regrow_supplement_1_table.parquet", state=STATES)
+        #regrow_census_tract_shape = expand("data/edited/Regrow/{state}_regrow_census_tract_spatial.parquet", state=STATES),
+        regrow_census_tract_table = expand("data/edited/Regrow/{state}_regrow_census_tract_table.parquet", state=STATES)
     params:
         states = STATES,
         target_CRS = config["global_vars"]["target_CRS"],
@@ -613,15 +630,15 @@ rule join_regrow_supplement_1:
         regrow_output_dir = config["regrow_supplement"]["final_dir"],
         census_tract_input_dir = config["census_tract"]["processed_data_dir"]
     script:
-        "scripts/join_regrow_supplement_1.py"
+        "scripts/join_regrow_census_tract.py"
 
-rule join_csb_supplement_1:
+rule join_csb_census_tract:
     input:
         csb_geometry = expand("data/edited/CSB/{state}_CSB{years}_CSBID_geometry.parquet", state=STATES, years=CSB_YEARS),
         tract_boundaries = "data/Census/census_tract/cb_2023_us_tract_500k.shp"
     output:
-        #csb1724_supplement_1_shape = expand("data/edited/CSB/{state}_CSB{years}_supplement_1_spatial.parquet", state=STATES, years=CSB_YEARS),
-        csb1724_supplement_1_table = expand("data/edited/CSB/{state}_CSB{years}_supplement_1_table.parquet", state=STATES, years=CSB_YEARS)
+        #csb1724_census_tract_shape = expand("data/edited/CSB/{state}_CSB{years}_census_tract_spatial.parquet", state=STATES, years=CSB_YEARS),
+        csb1724_census_tract_table = expand("data/edited/CSB/{state}_CSB{years}_census_tract_table.parquet", state=STATES, years=CSB_YEARS)
     params:
         states = STATES,
         CSB_years = CSB_YEARS,
@@ -630,17 +647,17 @@ rule join_csb_supplement_1:
         CSB_output_dir = config["csb_supplement"]["final_dir"],
         census_tract_input_dir = config["census_tract"]["processed_data_dir"]
     script:
-        "scripts/join_csb_supplement_1.py"
+        "scripts/join_csb_census_tract.py"
 
-#---# Supplementary data 2: Slope & elevation (from 3DEP)
-rule join_regrow_supplement_2:
+#---# Supplementary data: elevation_slope
+rule join_regrow_elevation_slope:
     input:
         regrow_geometry = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=STATES),
         elevation_clipped = expand("data/Geo/elevation/{state}_elevation_clipped.tif", state=STATES),
         slope_clipped = expand("data/Geo/slope/{state}_slope_clipped.tif", state=STATES)
     output:
-        #regrow_supplement_2_shape = expand("data/edited/Regrow/{state}_regrow_supplement_2_spatial.parquet", state=STATES),
-        regrow_supplement_2_table = expand("data/edited/Regrow/{state}_regrow_supplement_2_table.parquet", state=STATES)
+        #regrow_elevation_slope_shape = expand("data/edited/Regrow/{state}_regrow_elevation_slope_spatial.parquet", state=STATES),
+        regrow_elevation_slope_table = expand("data/edited/Regrow/{state}_regrow_elevation_slope_table.parquet", state=STATES)
     params:
         states = STATES,
         regrow_input_dir = config["regrow"]["final_dir"],
@@ -648,16 +665,16 @@ rule join_regrow_supplement_2:
         elevation_input_dir = config["elevation"]["processed_data_dir"],
         slope_input_dir = config["slope"]["processed_data_dir"]
     script:
-        "scripts/join_regrow_supplement_2.py"
+        "scripts/join_regrow_elevation_slope.py"
 
-rule join_csb_supplement_2:
+rule join_csb_elevation_slope:
     input:
         csb_geometry = expand("data/edited/CSB/{state}_CSB{years}_CSBID_geometry.parquet", state=STATES, years=CSB_YEARS),
         elevation_clipped = expand("data/Geo/elevation/{state}_elevation_clipped.tif", state=STATES),
         slope_clipped = expand("data/Geo/slope/{state}_slope_clipped.tif", state=STATES)
     output:
-        #csb1724_supplement_2_shape = expand("data/edited/CSB/{state}_CSB{years}_supplement_2_spatial.parquet", state=STATES, years=CSB_YEARS),
-        csb1724_supplement_2_table = expand("data/edited/CSB/{state}_CSB{years}_supplement_2_table.parquet", state=STATES, years=CSB_YEARS)
+        #csb1724_elevation_slope_shape = expand("data/edited/CSB/{state}_CSB{years}_elevation_slope_spatial.parquet", state=STATES, years=CSB_YEARS),
+        csb1724_elevation_slope_table = expand("data/edited/CSB/{state}_CSB{years}_elevation_slope_table.parquet", state=STATES, years=CSB_YEARS)
     params:
         states = STATES,
         CSB_years = CSB_YEARS,
@@ -666,18 +683,18 @@ rule join_csb_supplement_2:
         elevation_input_dir = config["elevation"]["processed_data_dir"],
         slope_input_dir = config["slope"]["processed_data_dir"]
     script:
-        "scripts/join_csb_supplement_2.py"
+        "scripts/join_csb_elevation_slope.py"
 
-#---# Supplementary data 3: Watershed data
-rule join_regrow_supplement_3:
+#---# Supplementary data: watershed
+rule join_regrow_watershed:
     input:
         regrow_geometry = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=STATES),
         subbasin = "data/Geo/watershed/subbasin.shp",
         watershed = "data/Geo/watershed/watershed.shp",
         subwatershed = "data/Geo/watershed/subwatershed.shp"
     output:
-        #regrow_supplement_3_shape = expand("data/edited/Regrow/{state}_regrow_supplement_3_spatial.parquet", state=STATES),
-        regrow_supplement_3_table = expand("data/edited/Regrow/{state}_regrow_supplement_3_table.parquet", state=STATES)
+        #regrow_watershed_shape = expand("data/edited/Regrow/{state}_regrow_watershed_spatial.parquet", state=STATES),
+        regrow_watershed_table = expand("data/edited/Regrow/{state}_regrow_watershed_table.parquet", state=STATES)
     params:
         states = STATES,
         target_CRS = config["global_vars"]["target_CRS"],
@@ -685,17 +702,17 @@ rule join_regrow_supplement_3:
         regrow_output_dir = config["regrow_supplement"]["final_dir"],
         watershed_input_dir = config["watershed"]["processed_data_dir"]
     script:
-        "scripts/join_regrow_supplement_3.py"
+        "scripts/join_regrow_watershed.py"
 
-rule join_csb_supplement_3:
+rule join_csb_watershed:
     input:
         csb_geometry = expand("data/edited/CSB/{state}_CSB{years}_CSBID_geometry.parquet", state=STATES, years=CSB_YEARS),
         subbasin = "data/Geo/watershed/subbasin.shp",
         watershed = "data/Geo/watershed/watershed.shp",
         subwatershed = "data/Geo/watershed/subwatershed.shp"
     output:
-        #csb1724_supplement_3_shape = expand("data/edited/CSB/{state}_CSB{years}_supplement_3_spatial.parquet", state=STATES, years=CSB_YEARS),
-        csb1724_supplement_3_table = expand("data/edited/CSB/{state}_CSB{years}_supplement_3_table.parquet", state=STATES, years=CSB_YEARS)
+        #csb1724_watershed_shape = expand("data/edited/CSB/{state}_CSB{years}_watershed_spatial.parquet", state=STATES, years=CSB_YEARS),
+        csb1724_watershed_table = expand("data/edited/CSB/{state}_CSB{years}_watershed_table.parquet", state=STATES, years=CSB_YEARS)
     params:
         states = STATES,
         CSB_years = CSB_YEARS,
@@ -704,18 +721,18 @@ rule join_csb_supplement_3:
         CSB_output_dir = config["csb_supplement"]["final_dir"],
         watershed_input_dir = config["watershed"]["processed_data_dir"]
     script:
-        "scripts/join_csb_supplement_3.py"
+        "scripts/join_csb_watershed.py"
 
-#---# Supplementary data 4: Nearest distance to road
+#---# Supplementary data: nearest_roads
 
 # Join nearest distance to road with Regrow geospatial dataset. Generate nearest point coordinates table, and generate points on road feature for future use
-rule join_regrow_supplement_4:
+rule join_regrow_nearest_roads:
     input:
         regrow_geometry = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=STATES),
         roads = "data/Roads/prisecroads.shp"
     output:
-        #regrow_supplement_4_shape = expand("data/edited/Regrow/{state}_regrow_supplement_4_spatial.parquet", state=STATES),
-        regrow_supplement_4_table = expand("data/edited/Regrow/{state}_regrow_supplement_4_table.parquet", state=STATES), 
+        #regrow_nearest_roads_shape = expand("data/edited/Regrow/{state}_regrow_nearest_roads_spatial.parquet", state=STATES),
+        regrow_nearest_roads_table = expand("data/edited/Regrow/{state}_regrow_nearest_roads_table.parquet", state=STATES),
         regrow_points_on_road_shape = expand("data/edited/Roads/{state}_regrow_points_on_road.geojson", state=STATES),
         regrow_points_on_road_table = expand("data/edited/Roads/{state}_regrow_points_on_road_table.csv", state=STATES)
     params:
@@ -726,16 +743,16 @@ rule join_regrow_supplement_4:
         roads_input_dir = config["roads"]["processed_data_dir"],
         roads_output_dir = config["roads"]["final_dir"]
     script:
-        "scripts/join_regrow_supplement_4.py"
+        "scripts/join_regrow_nearest_roads.py"
 
 # Join nearest distance to road with CSB geospatial dataset. Generate nearest point coordinates table, and generate points on road feature for future use
-rule join_csb_supplement_4:
+rule join_csb_nearest_roads:
     input:
         csb_geometry = expand("data/edited/CSB/{state}_CSB{years}_CSBID_geometry.parquet", state=STATES, years=CSB_YEARS),
         roads = "data/Roads/prisecroads.shp"
     output:
-        #csb1724_supplement_4_shape = expand("data/edited/CSB/{state}_CSB{years}_supplement_4_spatial.parquet", state=STATES, years=CSB_YEARS),
-        csb1724_supplement_4_table = expand("data/edited/CSB/{state}_CSB{years}_supplement_4_table.parquet", state=STATES, years=CSB_YEARS),
+        #csb1724_nearest_roads_shape = expand("data/edited/CSB/{state}_CSB{years}_nearest_roads_spatial.parquet", state=STATES, years=CSB_YEARS),
+        csb1724_nearest_roads_table = expand("data/edited/CSB/{state}_CSB{years}_nearest_roads_table.parquet", state=STATES, years=CSB_YEARS),
         csb1724_points_on_road_shape = expand("data/edited/Roads/{state}_CSB{years}_points_on_road.geojson", state=STATES, years=CSB_YEARS),
         csb1724_points_on_road_table = expand("data/edited/Roads/{state}_CSB{years}_points_on_road_table.csv", state=STATES, years=CSB_YEARS)
     params:
@@ -747,48 +764,48 @@ rule join_csb_supplement_4:
         roads_input_dir = config["roads"]["processed_data_dir"],
         roads_output_dir = config["roads"]["final_dir"]
     script:
-        "scripts/join_csb_supplement_4.py"
+        "scripts/join_csb_nearest_roads.py"
 
 
-#---# Supplementary data 5: land management activities on neighboring fields (either intersecting or sharing a boundary)
-rule join_regrow_supplement_5:
+#---# Supplementary data: neighbor_field_mgmt
+rule join_regrow_neighbor_field_mgmt:
     input:
         regrow_geometry = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=STATES),
         regrow_table = expand("data/edited/Regrow/{state}_regrow_table.parquet", state=STATES)
     output:
-        #regrow_supplement_5_shape = expand("data/edited/Regrow/{state}_regrow_supplement_5_spatial.parquet", state=STATES),
-        regrow_supplement_5_table = expand("data/edited/Regrow/{state}_regrow_supplement_5_table.parquet", state=STATES)
+        #regrow_neighbor_field_mgmt_shape = expand("data/edited/Regrow/{state}_regrow_neighbor_field_mgmt_spatial.parquet", state=STATES),
+        regrow_neighbor_field_mgmt_table = expand("data/edited/Regrow/{state}_regrow_neighbor_field_mgmt_table.parquet", state=STATES)
     params:
         states = STATES,
         regrow_input_dir = config["regrow"]["final_dir"],
         regrow_output_dir = config["regrow_supplement"]["final_dir"]
     script:
-        "scripts/join_regrow_supplement_5.py"
+        "scripts/join_regrow_neighbor_field_mgmt.py"
 
-rule join_csb_supplement_5:
+rule join_csb_neighbor_field_mgmt:
     input:
         csb_geometry = expand("data/edited/CSB/{state}_CSB{years}_CSBID_geometry.parquet", state=STATES, years=CSB_YEARS),
         csb_table = expand("data/edited/CSB/{state}_CSB{years}_table.parquet", state=STATES, years=CSB_YEARS)
     output:
-        #csb1724_supplement_5_shape = expand("data/edited/CSB/{state}_CSB{years}_supplement_5_spatial.parquet", state=STATES, years=CSB_YEARS),
-        csb1724_supplement_5_table = expand("data/edited/CSB/{state}_CSB{years}_supplement_5_table.parquet", state=STATES, years=CSB_YEARS)
+        #csb1724_neighbor_field_mgmt_shape = expand("data/edited/CSB/{state}_CSB{years}_neighbor_field_mgmt_spatial.parquet", state=STATES, years=CSB_YEARS),
+        csb1724_neighbor_field_mgmt_table = expand("data/edited/CSB/{state}_CSB{years}_neighbor_field_mgmt_table.parquet", state=STATES, years=CSB_YEARS)
     params:
         states = STATES,
         CSB_years = CSB_YEARS,
         CSB_input_dir = config["csb"]["final_dir"],
         CSB_output_dir = config["csb_supplement"]["final_dir"]
     script:
-        "scripts/join_csb_supplement_5.py"
+        "scripts/join_csb_neighbor_field_mgmt.py"
 
         
-#---# Supplementary data 6: weather data 
-rule join_regrow_supplement_6:
+#---# Supplementary data: weather
+rule join_regrow_weather:
     input:
         regrow_geometry = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=STATES),
         weather_vars_clipped = expand("data/edited/Weather/{weather_var}/{state}_prism_{weather_var}_us_30s_{year}{month}_clipped.tif", weather_var = config["weather"]["weather_variables"], year=YEARS, month=MONTHS, state=STATES)
     output:
-        #regrow_supplement_6_shape = expand("data/edited/Regrow/{state}_regrow_supplement_6_spatial.parquet", state=STATES),
-        regrow_supplement_6_table = expand("data/edited/Regrow/{state}_regrow_supplement_6_table.parquet", state=STATES)
+        #regrow_weather_shape = expand("data/edited/Regrow/{state}_regrow_weather_spatial.parquet", state=STATES),
+        regrow_weather_table = expand("data/edited/Regrow/{state}_regrow_weather_table.parquet", state=STATES)
     params:
         states = STATES,
         weather_variables = config["weather"]["weather_variables"],
@@ -796,15 +813,15 @@ rule join_regrow_supplement_6:
         regrow_output_dir = config["regrow_supplement"]["final_dir"],
         weather_input_dir = config["weather"]["final_dir"]
     script:
-        "scripts/join_regrow_supplement_6.py"
+        "scripts/join_regrow_weather.py"
 
-rule join_csb_supplement_6:
+rule join_csb_weather:
     input:
         csb_geometry = expand("data/edited/CSB/{state}_CSB{years}_CSBID_geometry.parquet", state=STATES, years=CSB_YEARS),
         weather_vars_clipped = expand("data/edited/Weather/{weather_var}/{state}_prism_{weather_var}_us_30s_{year}{month}_clipped.tif", weather_var = config["weather"]["weather_variables"], year=YEARS, month=MONTHS, state=STATES)
     output:
-        #csb1724_supplement_6_shape = expand("data/edited/CSB/{state}_CSB{years}_supplement_6_spatial.parquet", state=STATES, years=CSB_YEARS),
-        csb1724_supplement_6_table = expand("data/edited/CSB/{state}_CSB{years}_supplement_6_table.parquet", state=STATES, years=CSB_YEARS)
+        #csb1724_weather_shape = expand("data/edited/CSB/{state}_CSB{years}_weather_spatial.parquet", state=STATES, years=CSB_YEARS),
+        csb1724_weather_table = expand("data/edited/CSB/{state}_CSB{years}_weather_table.parquet", state=STATES, years=CSB_YEARS)
     params:
         states = STATES,
         CSB_years = CSB_YEARS,
@@ -813,20 +830,20 @@ rule join_csb_supplement_6:
         CSB_output_dir = config["csb_supplement"]["final_dir"],
         weather_input_dir = config["weather"]["final_dir"]
     script:
-        "scripts/join_csb_supplement_6.py"
+        "scripts/join_csb_weather.py"
 
-#---# Supplementary data 7: crop price data
-rule join_regrow_supplement_7:
+#---# Supplementary data: crop_prices
+rule join_regrow_crop_prices:
     input:
         regrow_geometry = expand("data/edited/Regrow/{state}_regrow_fieldID_geometry.parquet", state=STATES),
-        regrow_supplement_1_table = expand("data/edited/Regrow/{state}_regrow_supplement_1_table.parquet", state=STATES),
+        regrow_census_tract_table = expand("data/edited/Regrow/{state}_regrow_census_tract_table.parquet", state=STATES),
         elevator_average_price = expand("data/edited/Grain Price/{crop}_monthly_average_elevator_price.csv", crop=['corn', 'soybeans', 'wheat']),
         county_average_price = expand("data/edited/Grain Price/{crop}_monthly_average_county_price.csv", crop=['corn', 'soybeans']),
         elevator_location_parquet = expand("data/edited/Grain Price/{crop}_elevator_location.geojson", crop=['corn', 'soybeans', 'wheat']),
         index_county_location_geojson = expand("data/edited/Grain Price/{crop}_index_county_location.geojson", crop=['corn', 'soybeans'])
     output:
-        #regrow_supplement_7_shape = expand("data/edited/Regrow/{state}_regrow_supplement_7_spatial.geojson", state=STATES),
-        regrow_supplement_7_table = expand("data/edited/Regrow/{state}_regrow_supplement_7_table.parquet", state=STATES)
+        #regrow_crop_prices_shape = expand("data/edited/Regrow/{state}_regrow_crop_prices_spatial.geojson", state=STATES),
+        regrow_crop_prices_table = expand("data/edited/Regrow/{state}_regrow_crop_prices_table.parquet", state=STATES)
     params:
         states = STATES,
         crops = config["price"]["crops"],
@@ -838,32 +855,32 @@ rule join_regrow_supplement_7:
         regrow_output_dir = config["regrow_supplement"]["final_dir"],
         crop_price_input_dir = config["price"]["final_dir"]
     script:
-        "scripts/join_regrow_supplement_7.py"
+        "scripts/join_regrow_crop_prices.py"
 
-rule cut_regrow_supplement_7:
+rule cut_regrow_crop_prices:
     input:
-        regrow_supplement_7_table = expand("data/edited/Regrow/{state}_regrow_supplement_7_table.parquet", state=STATES)
+        regrow_crop_prices_table = expand("data/edited/Regrow/{state}_regrow_crop_prices_table.parquet", state=STATES)
     output:
-        #regrow_supplement_7_shape = expand("data/edited/Regrow/{state}_regrow_supplement_7_spatial.geojson", state=STATES),
-        regrow_supplement_7_table_reduced = expand("data/edited/Regrow/{state}_regrow_supplement_7_table_reduced.parquet", state=STATES)
+        #regrow_crop_prices_shape = expand("data/edited/Regrow/{state}_regrow_crop_prices_spatial.geojson", state=STATES),
+        regrow_crop_prices_table_reduced = expand("data/edited/Regrow/{state}_regrow_crop_prices_table_reduced.parquet", state=STATES)
     params:
         states = STATES,
         regrow_input_dir = config["regrow"]["final_dir"],
         regrow_output_dir = config["regrow_supplement"]["final_dir"]
     script:
-        "scripts/cut_regrow_supplement_7.py"
+        "scripts/cut_regrow_crop_prices.py"
 
-rule join_csb_supplement_7:
+rule join_csb_crop_prices:
     input:
         csb_geometry = expand("data/edited/CSB/{state}_CSB{years}_CSBID_geometry.parquet", state=STATES, years=CSB_YEARS),
-        csb_supplement_1_table = expand("data/edited/CSB/{state}_CSB{years}_supplement_1_table.parquet", state=STATES, years=CSB_YEARS),
+        csb_census_tract_table = expand("data/edited/CSB/{state}_CSB{years}_census_tract_table.parquet", state=STATES, years=CSB_YEARS),
         elevator_average_price = expand("data/edited/Grain Price/{crop}_monthly_average_elevator_price.csv", crop=['corn', 'soybeans', 'wheat']),
         county_average_price = expand("data/edited/Grain Price/{crop}_monthly_average_county_price.csv", crop=['corn', 'soybeans']),
         elevator_location_geojson = expand("data/edited/Grain Price/{crop}_elevator_location.geojson", crop=['corn', 'soybeans', 'wheat']),
         index_county_location_geojson = expand("data/edited/Grain Price/{crop}_index_county_location.geojson", crop=['corn', 'soybeans'])
     output:
-        #csb1724_supplement_7_shape = expand("data/edited/CSB/{state}_CSB{years}_supplement_7_spatial.parquet", state=STATES, years=CSB_YEARS),
-        csb1724_supplement_7_table = expand("data/edited/CSB/{state}_CSB{years}_supplement_7_table.parquet", state=STATES, years=CSB_YEARS)
+        #csb1724_crop_prices_shape = expand("data/edited/CSB/{state}_CSB{years}_crop_prices_spatial.parquet", state=STATES, years=CSB_YEARS),
+        csb1724_crop_prices_table = expand("data/edited/CSB/{state}_CSB{years}_crop_prices_table.parquet", state=STATES, years=CSB_YEARS)
     params:
         states = STATES,
         CSB_years = CSB_YEARS,
@@ -876,23 +893,23 @@ rule join_csb_supplement_7:
         CSB_output_dir = config["csb_supplement"]["final_dir"],
         crop_price_input_dir = config["price"]["final_dir"]
     script:
-        "scripts/join_csb_supplement_7.py"
+        "scripts/join_csb_crop_prices.py"
 
-rule cut_csb_supplement_7:
+rule cut_csb_crop_prices:
     input:
-        csb1724_supplement_7_table = expand("data/edited/CSB/{state}_CSB{years}_supplement_7_table.parquet", state=STATES, years=CSB_YEARS)
+        csb1724_crop_prices_table = expand("data/edited/CSB/{state}_CSB{years}_crop_prices_table.parquet", state=STATES, years=CSB_YEARS)
     output:
-        csb1724_supplement_7_table_reduced = expand("data/edited/CSB/{state}_CSB{years}_supplement_7_table_reduced.parquet", state=STATES, years=CSB_YEARS)
+        csb1724_crop_prices_table_reduced = expand("data/edited/CSB/{state}_CSB{years}_crop_prices_table_reduced.parquet", state=STATES, years=CSB_YEARS)
     params:
         states = STATES,
         CSB_years = CSB_YEARS,
         CSB_input_dir = config["csb"]["final_dir"],
         CSB_output_dir = config["csb_supplement"]["final_dir"]
     script:
-        "scripts/cut_csb_supplement_7.py"
+        "scripts/cut_csb_crop_prices.py"
 
-#---# Supplementary data 8: soil composition data
-rule join_regrow_supplement_8:
+#---# Supplementary data: soil_composition
+rule join_regrow_soil_composition:
     input:
         regrow_table = expand("data/edited/Regrow/{state}_regrow_table.parquet", state=STATES),
         regrow_raster_to_gSSURGO_grid = expand("data/edited/Regrow/Rasterization to gSSURGO grid/{state}_regrow_raster_to_gSSURGO_grid.tif", state=STATES),
@@ -900,8 +917,8 @@ rule join_regrow_supplement_8:
         regrow_fieldID_pid = expand("data/edited/Regrow/Rasterization to gSSURGO grid/{state}_regrow_fieldID_pid_correspondence.parquet", state=STATES),
         gSSURGO_tabular = expand("data/gSSURGO/gSSURGO_{state}/gSSURGO_{state}.gdb", state=STATES)
     output:
-        #regrow_supplement_8_shape = expand("data/edited/Regrow/{state}_regrow_supplement_8_spatial.parquet", state=STATES),
-        regrow_supplement_8_table = expand("data/edited/Regrow/{state}_regrow_supplement_8_table.parquet", state=STATES)
+        #regrow_soil_composition_shape = expand("data/edited/Regrow/{state}_regrow_soil_composition_spatial.parquet", state=STATES),
+        regrow_soil_composition_table = expand("data/edited/Regrow/{state}_regrow_soil_composition_table.parquet", state=STATES)
     params:
         states = STATES,
         soil_depth_cm = config["soil"]["soil_depth_cm"],
@@ -913,9 +930,9 @@ rule join_regrow_supplement_8:
         soil_output_dir = config["soil"]["final_dir"],
         mukey_input_dir = config["soil"]["final_dir"]
     script:
-        "scripts/join_regrow_supplement_8.py"
+        "scripts/join_regrow_soil_composition.py"
 
-rule join_csb_supplement_8:
+rule join_csb_soil_composition:
     input:
         csb_table = expand("data/edited/CSB/{state}_CSB{years}_table.parquet", state=STATES, years=CSB_YEARS),
         CSB_raster_to_gSSURGO_grid = expand("data/edited/CSB/Rasterization to gSSURGO grid/{state}_CSB{CSB_year}_raster_to_gSSURGO_grid.tif", state=STATES, CSB_year = CSB_YEARS),
@@ -923,8 +940,8 @@ rule join_csb_supplement_8:
         CSB_CSBID_pid = expand("data/edited/CSB/Rasterization to gSSURGO grid/{state}_CSB{CSB_year}_CSBID_pid_correspondence.parquet", state=STATES, CSB_year = CSB_YEARS),
         gSSURGO_tabular = expand("data/gSSURGO/gSSURGO_{state}/gSSURGO_{state}.gdb", state=STATES)
     output:
-        #csb1724_supplement_8_shape = expand("data/edited/CSB/{state}_CSB{years}_supplement_8_spatial.parquet", state=STATES, years=CSB_YEARS),
-        csb1724_supplement_8_table = expand("data/edited/CSB/{state}_CSB{years}_supplement_8_table.parquet", state=STATES, years=CSB_YEARS)
+        #csb1724_soil_composition_shape = expand("data/edited/CSB/{state}_CSB{years}_soil_composition_spatial.parquet", state=STATES, years=CSB_YEARS),
+        csb1724_soil_composition_table = expand("data/edited/CSB/{state}_CSB{years}_soil_composition_table.parquet", state=STATES, years=CSB_YEARS)
     params:
         states = STATES,
         CSB_years = CSB_YEARS,
@@ -937,12 +954,40 @@ rule join_csb_supplement_8:
         soil_output_dir = config["soil"]["final_dir"],
         mukey_input_dir = config["soil"]["final_dir"]
     script:
-        "scripts/join_csb_supplement_8.py"
+        "scripts/join_csb_soil_composition.py"
 
+#---# Supplementary data: ag_census
+rule join_regrow_ag_census:
+    input:
+        regrow_census_tract_table = expand("data/edited/Regrow/{state}_regrow_census_tract_table.parquet", state=STATES),
+        ag_census_conservation = expand("data/USDA Ag Census/{state}_Census_Economics_Farm Operations_Farm Ownership_Conservation Practices_2017&2022.csv", state=STATES),
+        ag_census_field_crops = expand("data/USDA Ag Census/{state}_Census_Crops_Field Crops_2017&2022.csv", state=STATES),
+        ag_census_land_ownership = expand("data/USDA Ag Census/{state}_Census_Demographics_Farms_Land Ownership_Assets_2017&2022.csv", state=STATES),
+        ag_census_farmer_characteristics = expand("data/USDA Ag Census/{state}_Census_Demographics_Producer Characteristics_2017&2022.csv", state=STATES)
+    output:
+        regrow_ag_census_table = expand("data/edited/Regrow/{state}_regrow_ag_census_table.parquet", state=STATES)
+    params:
+        states = STATES,
+        regrow_input_dir = config["regrow_supplement"]["final_dir"],
+        regrow_output_dir = config["regrow_supplement"]["final_dir"],
+        ag_census_input_dir = config["ag_census"]["raw_data_dir"]
+    script:
+        "scripts/join_regrow_ag_census.py"
 
-# =============================================================================
-# Additional rules that might be useful
-# =============================================================================
-
-rule convert_csv_to_parquet:
-    script: "scripts/convert_csv_to_parquet.py"
+rule join_csb_ag_census:
+    input:
+        csb_census_tract_table = expand("data/edited/CSB/{state}_CSB{years}_census_tract_table.parquet", state=STATES, years=CSB_YEARS),
+        ag_census_conservation = expand("data/USDA Ag Census/{state}_Census_Economics_Farm Operations_Farm Ownership_Conservation Practices_2017&2022.csv", state=STATES),
+        ag_census_field_crops = expand("data/USDA Ag Census/{state}_Census_Crops_Field Crops_2017&2022.csv", state=STATES),
+        ag_census_land_ownership = expand("data/USDA Ag Census/{state}_Census_Demographics_Farms_Land Ownership_Assets_2017&2022.csv", state=STATES),
+        ag_census_farmer_characteristics = expand("data/USDA Ag Census/{state}_Census_Demographics_Producer Characteristics_2017&2022.csv", state=STATES)
+    output:
+        csb1724_ag_census_table = expand("data/edited/CSB/{state}_CSB{years}_ag_census_table.parquet", state=STATES, years=CSB_YEARS)
+    params:
+        states = STATES,
+        CSB_years = CSB_YEARS,
+        CSB_input_dir = config["csb_supplement"]["final_dir"],
+        CSB_output_dir = config["csb_supplement"]["final_dir"],
+        ag_census_input_dir = config["ag_census"]["raw_data_dir"]
+    script:
+        "scripts/join_csb_ag_census.py"

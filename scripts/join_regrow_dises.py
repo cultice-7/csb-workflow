@@ -184,9 +184,9 @@ def assign_representative_field(regrow_dises):
             (regrow_dises_matching["match_quality_dises"] == "A") &
             (crop_conf_col <= CROP_CONF_THRESHOLD)
         ) |
-        # B_size: size match only, crop missing
+        # B_area: size match only, crop missing
         (
-            (regrow_dises_matching["match_quality_dises"] == "B_size") &
+            (regrow_dises_matching["match_quality_dises"] == "B_area") &
             (regrow_dises_matching["field_crop_23_dises"].isna())
         ) |
         # B_crop: crop match only, size missing, high confidence
@@ -206,7 +206,7 @@ def assign_representative_field(regrow_dises):
         ) |
         # Size match only, crop mismatch, low confidence
         (
-            (regrow_dises_matching["match_quality_dises"] == "B_size") &
+            (regrow_dises_matching["match_quality_dises"] == "B_area") &
             (regrow_dises_matching["field_crop_23_dises"].notna()) &
             (crop_conf_col <= CROP_CONF_THRESHOLD)
         )

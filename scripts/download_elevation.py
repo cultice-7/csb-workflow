@@ -36,7 +36,7 @@ def download_raw_html(
 
     # send get request; set stream to true to ensure no large file issues; wait timeout = 10 secs
     response = requests.get(html, stream=True, timeout=10)
-    response_size = int(response.headers["Content-Length"])
+    response_size = int(response.headers.get("Content-Length", 0))
 
     # check if response is okay
     if response.ok and response.status_code == 200:

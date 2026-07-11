@@ -35,8 +35,8 @@ for year in CSB_years:
         
         #---# Subbasin, watershed and subwatershed
         # Set paths to output files
-        output_path_spatial = os.path.join(CSB_output_folder, f"{state}_CSB{year}_supplement_3_spatial.parquet")
-        output_path_table = os.path.join(CSB_output_folder, f"{state}_CSB{year}_supplement_3_table.parquet")
+        output_path_spatial = os.path.join(CSB_output_folder, f"{state}_CSB{year}_watershed_spatial.parquet")
+        output_path_table = os.path.join(CSB_output_folder, f"{state}_CSB{year}_watershed_table.parquet")
         
         print("Adding hydrography data...")
         # Each hydrological unit has a specific dataset structure, so we process them separately

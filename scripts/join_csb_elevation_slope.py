@@ -33,8 +33,8 @@ for year in CSB_years:
         
         #---# Add zonal statistics for elevation and slope
         # Set paths to output files
-        output_path_spatial = os.path.join(CSB_output_folder, f"{state}_CSB{year}_supplement_2_spatial.parquet")
-        output_path_table = os.path.join(CSB_output_folder, f"{state}_CSB{year}_supplement_2_table.parquet")
+        output_path_spatial = os.path.join(CSB_output_folder, f"{state}_CSB{year}_elevation_slope_spatial.parquet")
+        output_path_table = os.path.join(CSB_output_folder, f"{state}_CSB{year}_elevation_slope_table.parquet")
         
         # Zonal statistics for elevation
         try:
@@ -56,6 +56,7 @@ for year in CSB_years:
             print("Mean slope added to attribute table.")
         except Exception as e:
             print(f"Error processing slope: {e}")
+            raise
         
         # Check whether there are any missing values
         cols_to_check = ['CSBID', 'elevation_mean', 'slope_mean']

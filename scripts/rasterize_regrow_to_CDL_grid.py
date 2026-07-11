@@ -34,7 +34,7 @@ def preprocess_regrow(state, regrow_input_folder, regrow_checks_folder, regrow_r
     regrow_geometry = (regrow_geometry[~regrow_geometry["field_id"].isin(overlap_smaller_field_ids)]).reset_index(drop=True)
   
     # In rasterio, if multiple polygons overlap a single pixel, the value from the last polygon in the input sequence is assigned to that pixel in the final raster
-    # If polygons overlap slightly, we want overlapping areas to take the value of the larger polygon
+    # If polygons overlap, we want overlapping areas to take the value of the larger polygon
     # Sort polygons by area in ascending order so that larger polygons are processed last
     regrow_geometry = regrow_geometry.iloc[regrow_geometry.geometry.area.argsort()]
     

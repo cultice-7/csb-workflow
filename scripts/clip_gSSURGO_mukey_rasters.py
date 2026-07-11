@@ -42,6 +42,7 @@ soil_input_folder = snakemake.params.soil_input_dir
 soil_output_folder = snakemake.params.soil_output_dir
 states = snakemake.params.states
 target_CRS = snakemake.params.target_CRS
+state_buffer_m = snakemake.params.state_buffer_margin
 
 # Read file with state boundaries
 state_bound = gpd.read_file(Path(state_bound_folder) / f"cb_2023_us_state_500k.shp")
@@ -58,7 +59,7 @@ for state in states:
     select_state_bound = select_state_bound.to_crs(target_CRS)
     
     # 3. Create 10 km outward buffer
-    state_bound_outer = select_state_bound.buffer(10000)
+    state_bound_outer = select_state_bound.buffer(state_buffer_m)
     
     # Path for output files
     mukey_raster_output = os.path.join(soil_output_folder, f"gSSURGO Mukey Grid/{state}_MURASTER_30m.tif")

@@ -22,8 +22,8 @@ roads = roads.to_crs(target_CRS)
 for state in states:
     
     input_path_Regrow = os.path.join(regrow_input_folder, f"{state}_regrow_fieldID_geometry.parquet")
-    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_4_spatial.parquet")
-    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_4_table.parquet")
+    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_nearest_roads_spatial.parquet")
+    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_nearest_roads_table.parquet")
     output_path_road_geojson = os.path.join(roads_output_folder, f"{state}_regrow_points_on_road.geojson")
     output_path_road_csv = os.path.join(roads_output_folder, f"{state}_regrow_points_on_road_table.csv")
     

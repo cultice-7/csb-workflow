@@ -32,8 +32,8 @@ for state in states:
     
     #---# Add zonal statistics for elevation and slope
     # Set paths to output files
-    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_2_spatial.parquet")
-    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_2_table.parquet")
+    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_elevation_slope_spatial.parquet")
+    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_elevation_slope_table.parquet")
     
     # Zonal statistics for elevation
     try:

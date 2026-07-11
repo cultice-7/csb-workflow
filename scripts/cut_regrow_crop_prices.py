@@ -16,8 +16,8 @@ drop_pattern = ["elevator_nearest"]
 def cut_crop_price_columns(state, drop_pattern, regrow_input_folder, regrow_output_folder):
     
     # Path to input and output paths
-    regrow_supplement_7_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_supplement_7_table.parquet")
-    regrow_supplement_7_output_path = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_7_table_reduced.parquet")
+    regrow_supplement_7_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_crop_prices_table.parquet")
+    regrow_supplement_7_output_path = os.path.join(regrow_output_folder, f"{state}_regrow_crop_prices_table_reduced.parquet")
     
     # Load Regrow datasets
     regrow_supplement_7 = pd.read_parquet(regrow_supplement_7_input_path)
@@ -35,7 +35,6 @@ def cut_crop_price_columns(state, drop_pattern, regrow_input_folder, regrow_outp
     
     
 # Main code
-for state in states:
-    
-    
+for state in states:   
+
     cut_crop_price_columns(state, drop_pattern, regrow_input_folder, regrow_output_folder)

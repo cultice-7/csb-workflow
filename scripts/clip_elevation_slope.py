@@ -44,6 +44,7 @@ elevation_output_folder = snakemake.params.elevation_output_dir
 slope_output_folder = snakemake.params.slope_output_dir
 states = snakemake.params.states
 target_CRS = snakemake.params.target_CRS
+state_buffer_m = snakemake.params.state_buffer_margin
 
 # Read file with state boundaries
 state_bound = gpd.read_file(Path(state_bound_folder) / f"cb_2023_us_state_500k.shp")
@@ -60,8 +61,8 @@ for state in states:
     # Reproject to the the target CRS
     select_state_bound = select_state_bound.to_crs(target_CRS)
     
-    # 3. Create 30 km outward buffer
-    state_bound_outer = select_state_bound.buffer(30000)
+    # 3. Create 10 km outward buffer
+    state_bound_outer = select_state_bound.buffer(state_buffer_m)
     
     # Path for elevation output files
     elevation_output = os.path.join(elevation_output_folder, f"{state}_elevation_clipped.tif")

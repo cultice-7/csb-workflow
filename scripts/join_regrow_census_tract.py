@@ -35,8 +35,8 @@ for state in states:
 
     #---# Add Census data: state, county, tract
     # Set paths to output files
-    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_1_spatial.parquet")
-    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_1_table.parquet")
+    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_census_tract_spatial.parquet")
+    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_census_tract_table.parquet")
     try:
         #---# Polygon–polygon intersections (too time-consuming)
         #tract_boundaries = tract_boundaries.to_crs(epsg=5070)

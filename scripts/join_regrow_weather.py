@@ -17,8 +17,8 @@ weather_variables = snakemake.params.weather_variables
 for state in states:
     
     regrow_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_fieldID_geometry.parquet")
-    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_6_spatial.parquet")
-    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_6_table.parquet")
+    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_weather_spatial.parquet")
+    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_weather_table.parquet")
     
     # Load regrow_dises joined datasets
     regrow_shape = gpd.read_parquet(regrow_input_path)
@@ -53,7 +53,7 @@ for state in states:
                     count=len(centroid_coords)
                 )
             
-            new_cols[f'{variable}_mean_{date}'] = weather_stats
+            new_cols[f'{variable}_centroid_{date}'] = weather_stats
             
         regrow_shape = regrow_shape.join(pd.DataFrame(new_cols, index=regrow_shape.index))
 

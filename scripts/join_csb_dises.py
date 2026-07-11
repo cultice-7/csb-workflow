@@ -45,7 +45,7 @@ for year in years:
         dises_shape_table = dises_shape_table.set_geometry('geometry_dises')
 
         # Reproject all to an equal-area CRS (NAD83/CONUS Albers)
-        csb_shape_table = csb_shape_table.set_crs(target_CRS)
+        csb_shape_table = csb_shape_table.to_crs(target_CRS)
         dises_shape_table = dises_shape_table.to_crs(target_CRS)
 
         # Preserve original geometry before buffering
@@ -103,10 +103,10 @@ for year in years:
 
         # Add field match conditions (1,0, or NaN)
         csb_dises['crop_match_dises'] = np.where(
-            (csb_dises['field_crop_23_dises'].isna()) | (csb_dises['CDL2023'].isna()),
+            (csb_dises['field_crop_23_dises_mapped'].isna()) | (csb_dises['CDL2023'].isna()),
             np.nan,
             (
-                (csb_dises['field_crop_23_dises'] == csb_dises['CDL2023'])
+                (csb_dises['field_crop_23_dises_mapped'] == csb_dises['CDL2023'])
             ).astype(int)
         )
 
@@ -175,9 +175,9 @@ for year in years:
         ).replace(False, np.nan)
         
         csb_dises_matching["RF_level_2_dises"] = (
-            # B_size: size match only, crop missing
+            # B_area: size match only, crop missing
             (
-                (csb_dises_matching["match_quality_dises"] == "B_size") &
+                (csb_dises_matching["match_quality_dises"] == "B_area") &
                 (csb_dises_matching["field_crop_23_dises"].isna())
             ) |
             # B_crop: crop match only, size missing
@@ -190,7 +190,7 @@ for year in years:
         csb_dises_matching["RF_level_3_dises"] = (
             # Size match only, crop mismatch
             (
-                (csb_dises_matching["match_quality_dises"] == "B_size") &
+                (csb_dises_matching["match_quality_dises"] == "B_area") &
                 (csb_dises_matching["field_crop_23_dises"].notna())
             )
         ).replace(False, np.nan)

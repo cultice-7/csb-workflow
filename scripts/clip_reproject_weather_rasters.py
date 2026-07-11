@@ -5,6 +5,7 @@ from rasterio.warp import Resampling
 from rasterio.mask import mask
 from pathlib import Path
 import os
+import numpy as np
 
 # Function that clip and reproject each raster file
 def reproject_clip_raster(
@@ -19,6 +20,8 @@ def reproject_clip_raster(
         with WarpedVRT(
             src,
             crs=dst_crs,
+            src_nodata=-9999,
+            nodata=np.nan,
             resampling=Resampling.average
         ) as vrt:
 

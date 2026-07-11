@@ -12,6 +12,7 @@ years_range = snakemake.params.years
 target_CRS = snakemake.params.target_CRS
 cdl_input_folder = snakemake.params.cdl_input_dir
 cdl_output_folder = snakemake.params.cdl_output_dir
+state_buffer_m = snakemake.params.state_buffer_margin
 
 
 def clip_cdl_using_state_boundaries(state_bound_outer, state, year, cdl_input_folder, cdl_output_folder):
@@ -41,6 +42,7 @@ def clip_cdl_using_state_boundaries(state_bound_outer, state, year, cdl_input_fo
         print(f"File not found: {cdl_path}")
     except Exception as e:
         print(f"Error processing {year}: {e}")
+        raise
 
 
 # Main script
@@ -53,8 +55,8 @@ for state in states:
     # Extract state boundaries
     select_state_bound = state_bound[state_bound['STUSPS'] == state]
     
-    # Create 30 km outward buffer
-    state_bound_outer = select_state_bound.buffer(30000)
+    # Create 10 km outward buffer
+    state_bound_outer = select_state_bound.buffer(state_buffer_m)
 
     # Create an output directory
     os.makedirs(cdl_output_folder, exist_ok=True)

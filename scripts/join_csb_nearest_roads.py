@@ -24,8 +24,8 @@ for year in CSB_years:
     for state in states:
         
         CSB_input_path_CSB = os.path.join(CSB_input_folder, f"{state}_CSB{year}_CSBID_geometry.parquet")
-        output_path_spatial = os.path.join(CSB_output_folder, f"{state}_CSB{year}_supplement_4_spatial.parquet")
-        output_path_table = os.path.join(CSB_output_folder, f"{state}_CSB{year}_supplement_4_table.parquet")
+        output_path_spatial = os.path.join(CSB_output_folder, f"{state}_CSB{year}_nearest_roads_spatial.parquet")
+        output_path_table = os.path.join(CSB_output_folder, f"{state}_CSB{year}_nearest_roads_table.parquet")
         road_output_path_geojson = os.path.join(roads_output_folder, f"{state}_CSB{year}_points_on_road.geojson")
         road_output_path_csv = os.path.join(roads_output_folder, f"{state}_CSB{year}_points_on_road_table.csv")
         

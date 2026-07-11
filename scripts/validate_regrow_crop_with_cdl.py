@@ -18,6 +18,8 @@ def summarize(regrow_table_cdl, year, filter_cdl=None):
     
     cdl_col, valid_col = f"cdl_crop_{year}", f"cdl_valid_{year}"
     regrow_crop_cols = regrow_table_cdl.filter(regex=f"^crop_{str(year)[2:]}_*").columns
+    # Drop all raws with Rergow main crop value of 999 for a given year since 999 indicates all types of non-cropland alnd
+    regrow_table_cdl = regrow_table_cdl[~(regrow_table_cdl[regrow_crop_cols].eq(999).any(axis=1))]
     df = regrow_table_cdl[regrow_table_cdl[regrow_crop_cols].isin(filter_cdl).any(axis=1)] if filter_cdl else regrow_table_cdl
     valid = int(df[valid_col].sum())
     total = int(df[valid_col].count())

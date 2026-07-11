@@ -10,7 +10,7 @@ states = snakemake.params.states
 
 def clean_regrow_table(state, regrow_table_input_folder, regrow_table_output_folder):
     
-    regrow_table_input_path = os.path.join(regrow_table_input_folder, f"{state}_Monitor_data.parquet")
+    regrow_table_input_path = os.path.join(regrow_table_input_folder, f"{state}_Monitor_data_2014-2025.parquet")
     regrow_table_output_path = os.path.join(regrow_table_output_folder, f"{state}_regrow_monitor_wide_coded.parquet")
     
     df = pd.read_parquet(regrow_table_input_path)
@@ -198,14 +198,14 @@ def clean_regrow_table(state, regrow_table_input_folder, regrow_table_output_fol
 
     df_PHtill_wide.replace(tillage_map, inplace = True)
     # Select columns containing "PHtill_1" or "PHtill_2"
-    cols_to_convert = df_PHtill_wide.columns[df_PHtill_wide.columns.str.startswith(("PHtill_1|PHtill_2"))]
+    cols_to_convert = df_PHtill_wide.columns[df_PHtill_wide.columns.str.startswith(("PHtill_1", "PHtill_2"))]
     # Convert to numeric and then to nullable Int16
     df_PHtill_wide[cols_to_convert] = (df_PHtill_wide[cols_to_convert].apply(pd.to_numeric, errors="coerce").astype("Int16"))
 
 
     df_PPtill_wide.replace(tillage_map, inplace = True)
     # Select columns containing "PPtill_1" or "PPtill_2"
-    cols_to_convert = df_PPtill_wide.columns[df_PPtill_wide.columns.str.startswith(("PPtill_1|PPtill_2"))]
+    cols_to_convert = df_PPtill_wide.columns[df_PPtill_wide.columns.str.startswith(("PPtill_1", "PPtill_2"))]
     # Convert to numeric and then to nullable Int16
     df_PPtill_wide[cols_to_convert] = (df_PPtill_wide[cols_to_convert].apply(pd.to_numeric, errors="coerce").astype("Int16"))
 
@@ -216,12 +216,12 @@ def clean_regrow_table(state, regrow_table_input_folder, regrow_table_output_fol
         "GREEN_COVER_CLASS_POTENTIAL_COVER_CROP": 2, 
         "GREEN_COVER_CLASS_COVER_CROP": 3,
         "GREEN_COVER_CLASS_NO_DATA": np.nan,
-        "GREEN_COVER_CLASS_NOT_APPLICABLE": np.nan
+        "GREEN_COVER_CLASS_NOT_APPLICABLE": 999
     }
 
     df_cover_wide.replace(cover_crop_map, inplace = True)
     # Select columns containing "cover_1" or "cover_2"
-    cols_to_convert = df_cover_wide.columns[df_cover_wide.columns.str.startswith(("cover_1|cover_2"))]
+    cols_to_convert = df_cover_wide.columns[df_cover_wide.columns.str.startswith(("cover_1", "cover_2"))]
     # Convert to numeric and then to nullable Int16
     df_cover_wide[cols_to_convert] = (df_cover_wide[cols_to_convert].apply(pd.to_numeric, errors="coerce").astype("Int16"))
 
@@ -253,7 +253,6 @@ for state in states:
     col_list, output_path = clean_regrow_table(state, regrow_table_input_folder, regrow_table_output_folder)
     all_cols.update(col_list)
     regrow_cleaned_table_paths.append(output_path)
-print(all_cols)
    
  # Sort column names to ensure consistency
 id_col = "field_id"

@@ -177,7 +177,7 @@ def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_o
 
         return np.sum(vals * weights) / np.sum(weights)
     
-    # Compute component-level values
+    # Compute soil component-level values
     component_weighted_target_depth = (
         mapunit_component_chorizon_copy.groupby(["mukey", "cokey", "comppct_r"])
         .apply(lambda x: pd.Series({
@@ -188,7 +188,7 @@ def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_o
         }), include_groups=False)
         .reset_index())
     
-    # Component-weighted mean for each mukey (component-weighted mean using comppct_r)
+    # Soil component-weighted mean for each mukey (component-weighted mean using comppct_r)
     def component_weighted_mean(x, col):
         vals = x[col]
         weights = x["comppct_r"]
@@ -231,7 +231,7 @@ def merge_CSB_mukey_soilvars(state, year, mukey_soil_variables, CSB_input_folder
     gssurgo_mukey_input_path = os.path.join(mukey_input_folder, "gSSURGO Mukey Grid", f"{state}_MURASTER_30m.tif")
     overlapping_fields_input_path = os.path.join(CSB_checks_folder, f"{state}_CSB{year}_overlapping_fields.parquet")
     CSBID_pid_input_path = os.path.join(rasterized_CSB_input_folder, f"{state}_CSB{year}_CSBID_pid_correspondence.parquet")
-    output_path_table = os.path.join(CSB_output_folder, f"{state}_CSB{year}_supplement_8_table.parquet")
+    output_path_table = os.path.join(CSB_output_folder, f"{state}_CSB{year}_soil_composition_table.parquet")
     
     
     # Load CSB_dises joined datasets

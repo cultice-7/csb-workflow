@@ -17,7 +17,7 @@ def megre_geometry(state, regrow_2014_2024_input_folder, regrow_2025_input_folde
     # Input and output file names
     input_geometry_2014_2024_path = os.path.join(regrow_2014_2024_input_folder, f"{state}_field_boundaries.geojson")
     input_geometry_2025_path = os.path.join(regrow_2025_input_folder, f"{state}_2025_boundaries.geojson")
-    output_geometry_merged = os.path.join(regrow_joined_output_folder, f"{state}_field_boundaries.parquet")
+    output_geometry_merged = os.path.join(regrow_joined_output_folder, f"{state}_field_boundaries_2014-2025.parquet")
     
     # Read input file
     geometry_2014_2024 = gpd.read_file(input_geometry_2014_2024_path)
@@ -38,7 +38,7 @@ def concat_monitor_data(state_monitor, regrow_2014_2024_input_folder, regrow_202
     
     # Input and output file names
     input_table_2014_2024_path = os.path.join(regrow_2014_2024_input_folder, f"Monitor_data_{state_monitor}.csv")
-    output_table_concatenated = os.path.join(regrow_joined_output_folder, f"Monitor_data_{state_monitor}.parquet")
+    output_table_concatenated = os.path.join(regrow_joined_output_folder, f"Monitor_data_{state_monitor}_2014-2025.parquet")
     # Read input file
     table_2014_2024 = pd.read_csv(input_table_2014_2024_path)
     

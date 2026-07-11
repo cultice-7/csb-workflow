@@ -176,7 +176,7 @@ def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_o
 
         return np.sum(vals * weights) / np.sum(weights)
     
-    # Compute component-level values
+    # Compute soil component-level values
     component_weighted_target_depth = (
         mapunit_component_chorizon_copy.groupby(["mukey", "cokey", "comppct_r"])
         .apply(lambda x: pd.Series({
@@ -187,7 +187,7 @@ def process_gSSURGO_tabular_data(state, soil_depth_cm, soil_input_folder, soil_o
         }), include_groups=False)
         .reset_index())
     
-    # Component-weighted mean for each mukey (component-weighted mean using comppct_r)
+    # Soil component-weighted mean for each mukey (component-weighted mean using comppct_r)
     def component_weighted_mean(x, col):
         vals = x[col]
         weights = x["comppct_r"]
@@ -234,7 +234,7 @@ def merge_regrow_mukey_soilvars(state, mukey_soil_variables, regrow_input_folder
     gssurgo_mukey_input_path = os.path.join(mukey_input_folder, "gSSURGO Mukey Grid", f"{state}_MURASTER_30m.tif")
     overlapping_fields_input_path = os.path.join(regrow_checks_folder, f"{state}_regrow_overlapping_fields.parquet")
     fieldID_pid_input_path = os.path.join(rasterzied_regrow_input_folder, f"{state}_regrow_fieldID_pid_correspondence.parquet")
-    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_8_table.parquet")
+    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_soil_composition_table.parquet")
     
     # Load regrow_dises joined datasets
     regrow_table = pd.read_parquet(regrow_table_input_path)

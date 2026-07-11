@@ -33,8 +33,8 @@ for state in states:
 
     #---# Add subbasin, watershed and subwatershed
     # Set paths to output files
-    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_3_spatial.parquet")
-    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_3_table.parquet")
+    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_watershed_spatial.parquet")
+    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_watershed_table.parquet")
     
     print("Adding hydrography data...")
     # Each hydrological unit has a specific dataset structure, so we process them separately

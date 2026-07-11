@@ -33,7 +33,7 @@ def download_raw_html(
 
     # send get request; set stream to true to ensure no large file issues
     response = requests.get(html, stream=True)
-    response_size = int(response.headers["Content-Length"])
+    response_size = int(response.headers.get("Content-Length", 0))
 
     # check if response is okay and connection remains open
     response_is_ok = response.ok

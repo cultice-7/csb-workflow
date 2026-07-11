@@ -18,8 +18,8 @@ for year in CSB_years:
     for state in states:
         
         CSB_input_path = os.path.join(CSB_input_folder, f"{state}_CSB{year}_CSBID_geometry.parquet")
-        output_path_spatial = os.path.join(CSB_output_folder, f"{state}_CSB{year}_supplement_6_spatial.parquet")
-        output_path_table = os.path.join(CSB_output_folder, f"{state}_CSB{year}_supplement_6_table.parquet")
+        output_path_spatial = os.path.join(CSB_output_folder, f"{state}_CSB{year}_weather_spatial.parquet")
+        output_path_table = os.path.join(CSB_output_folder, f"{state}_CSB{year}_weather_table.parquet")
 
         # Load CSB_shape datasets
         CSB_shape = gpd.read_parquet(CSB_input_path)
@@ -48,7 +48,7 @@ for year in CSB_years:
                 with rasterio.open(file) as src:
                     weather_stats = list(src.sample(centroid_coords))
                 
-                new_cols[f'{variable}_mean_{date}'] = [stat[0] for stat in weather_stats]
+                new_cols[f'{variable}_centroid_{date}'] = [stat[0] for stat in weather_stats]
                 
             CSB_shape = CSB_shape.join(pd.DataFrame(new_cols, index=CSB_shape.index))
         

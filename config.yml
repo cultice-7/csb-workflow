@@ -55,12 +55,14 @@ cdl:
   processed_data_dir: "data/CDL"
   final_dir: "data/edited/CDL"
   rasterization_year: 2024
+  state_buffer_margin: 10000
 
 elevation:
   base_html: "https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/1/TIFF/current"
   y_range: [35, 51] #N36 to N50
   x_range: [81, 100] #W081 to W099
   resampling_method: "bilinear"
+  state_buffer_margin: 10000
   raw_data_dir: "data/Geo/elevation/tiles"
   processed_data_dir: "data/Geo/elevation"
 
@@ -112,6 +114,10 @@ price:
 
 soil:
   soil_depth_cm: 30
+  state_buffer_margin: 10000
   raw_data_dir: "data/gSSURGO"
   processed_data_dir: "data/gSSURGO"
   final_dir: "data/edited/Soil"
+
+ag_census:
+  raw_data_dir: "data/USDA Ag Census"

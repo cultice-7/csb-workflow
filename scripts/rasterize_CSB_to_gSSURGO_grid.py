@@ -31,8 +31,9 @@ def CSB_rasterization(state, CSB_year, CSB_input_folder, CSB_checks_folder, soil
 
 
     ### Clean CSB: CSB geometries contain overlaps which harms rasterization, we need to remove those overlaps ###
+    CSB_overplaps = pd.read_parquet(overlapping_fields_input_path)
     # Extract all smaller parcel IDs from the pairs
-    overlap_smaller_CSBIDs = pd.read_parquet(overlapping_fields_input_path)
+    overlap_smaller_CSBIDs = CSB_overplaps["CSBID_smaller"].unique()
     # Drop rows whose CSBID is in smaller_ids and reset index
     CSB_geometry = (CSB_geometry[~CSB_geometry["CSBID"].isin(overlap_smaller_CSBIDs)]).reset_index(drop=True)
     

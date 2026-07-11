@@ -11,8 +11,8 @@ states_monitor = snakemake.params.states_monitor
 
 def split_monitor_data_by_state(monitor_merged, state, input_folder, output_folder):
     
-    regrow_shape_input_path = os.path.join(input_folder, f"{state}_field_boundaries.parquet")
-    regrow_monitor_output_path = os.path.join(output_folder, f"{state}_Monitor_data.parquet")
+    regrow_shape_input_path = os.path.join(input_folder, f"{state}_field_boundaries_2014-2025.parquet")
+    regrow_monitor_output_path = os.path.join(output_folder, f"{state}_Monitor_data_2014-2025.parquet")
     
     # Read regrow geometry file and keep only "boundary_id" column
     regrow_shape = pd.read_parquet(regrow_shape_input_path)
@@ -32,7 +32,7 @@ def split_monitor_data_by_state(monitor_merged, state, input_folder, output_fold
 monitor_merged = pd.DataFrame()
 
 for state in states_monitor:
-    monitor_input_path = os.path.join(input_folder, f"Monitor_data_{state}.parquet")
+    monitor_input_path = os.path.join(input_folder, f"Monitor_data_{state}_2014-2025.parquet")
     monitor = pd.read_parquet(monitor_input_path)
     if monitor_merged.empty:
         monitor_merged = monitor.copy()

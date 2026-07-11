@@ -16,8 +16,8 @@ for state in states:
     
     regrow_shape_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_fieldID_geometry.parquet")
     regrow_table_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_table.parquet")
-    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_5_spatial.parquet")
-    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_supplement_5_table.parquet")
+    output_path_spatial = os.path.join(regrow_output_folder, f"{state}_regrow_neighbor_field_mgmt_spatial.parquet")
+    output_path_table = os.path.join(regrow_output_folder, f"{state}_regrow_neighbor_field_mgmt_table.parquet")
 
     # Load regrow shape and table data
     regrow_shape = gpd.read_parquet(regrow_shape_input_path)

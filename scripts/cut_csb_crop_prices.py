@@ -17,8 +17,8 @@ drop_pattern = ["elevator_nearest"]
 def cut_crop_price_columns(state, year, drop_pattern, CSB_input_folder, CSB_output_folder):
     
     # Path to input and output paths
-    csb_supplement_7_input_path = os.path.join(CSB_input_folder, f"{state}_CSB{year}_supplement_7_table.parquet")
-    csb_supplement_7_output_path = os.path.join(CSB_output_folder, f"{state}_CSB{year}_supplement_7_table_reduced.parquet")
+    csb_supplement_7_input_path = os.path.join(CSB_input_folder, f"{state}_CSB{year}_crop_prices_table.parquet")
+    csb_supplement_7_output_path = os.path.join(CSB_output_folder, f"{state}_CSB{year}_crop_prices_table_reduced.parquet")
     
     # Load Regrow datasets
     csb_supplement_7 = pd.read_parquet(csb_supplement_7_input_path)
