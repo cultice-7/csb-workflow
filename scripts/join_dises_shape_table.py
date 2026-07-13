@@ -32,5 +32,8 @@ dises_table['field_cover_23'] = dises_table['field_cover_23'].replace(2,1) #2-No
 # Join shape file and table using comprehensive ID
 dises_shape_table = dises_shape.merge(dises_table, on='comp_id', how='left')
 
+# Replace nan values in the "survey_responded" column witn "N" value
+dises_shape_table["survey_responded"] = dises_shape_table["survey_responded"].fillna("N")
+
 # Save joined DISES shape and table files to parquet
 dises_shape_table.to_parquet(output_path_dises_shape_table, compression="zstd")

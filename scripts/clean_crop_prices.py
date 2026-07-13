@@ -15,7 +15,7 @@ input_dir = Path(snakemake.params.input_dir)
 output_dir = Path(snakemake.params.output_dir)
 
 
-def merge_crop_price_by_state(crop, states, level):
+def merge_crop_price_by_state(crop, states, level, input_dir):
     # Create a list of all months from 2010 to 2025
     dates = pd.date_range(start="2010-01-01", end="2025-12-01", freq="MS")
     # Create empty dataset with Date (month) column
@@ -114,7 +114,7 @@ def geocode_location_county(location):
             return None
 
 
-def determine_save_elevator_location(df_crop_price, df_crop_price_avg, crop, output_dir):
+def determine_save_elevator_location(df_crop_price, df_crop_price_avg, crop, input_dir, output_dir):
     names = []
     tickers = []
     for col in df_crop_price.columns:
@@ -136,9 +136,11 @@ def determine_save_elevator_location(df_crop_price, df_crop_price_avg, crop, out
     elevator_location['elevator location'] = elevator_location['elevator description'].str.split(";").str[1].str.strip()
     # Replace "St" and "St." with "Saint" in elevator location
     elevator_location['elevator location'] = elevator_location['elevator location'].str.replace(r'\bSt\.?\b', 'Saint', regex=True)
+
     # Replace incorrect elevator locations
-    elevator_location_corrected = pd.read_excel(output_dir / f"corrected_elevator_location_corn_soybeans_wheat.xlsx")
+    elevator_location_corrected = pd.read_excel(input_dir / f"corrected_elevator_location_corn_soybeans_wheat.xlsx")
     elevator_location['elevator location'] = elevator_location['ticker'].map(elevator_location_corrected.set_index('ticker')['corrected location']).fillna(elevator_location['elevator location'])
+    
     # Apply geocode_location to find the centroids of towns where elevators are located
     elevator_location[['geometry', 'county', 'state']] = elevator_location['elevator location'].apply(lambda x: pd.Series(geocode_location_elevator(x)))
     # Extract crop type from elevator description
@@ -209,11 +211,11 @@ for crop in crops:
     for level in price_levels:
         
         try:
-            df_crop_price_merged = merge_crop_price_by_state(crop, states, level)
+            df_crop_price_merged = merge_crop_price_by_state(crop, states, level, input_dir)
             df_crop_price_merged_avg = clean_transform_save_merged_price_data(df_crop_price_merged, crop, level, drop_threshold, output_dir)
             
             if level == "elevator":
-                determine_save_elevator_location(df_crop_price_merged, df_crop_price_merged_avg, crop, output_dir)
+                determine_save_elevator_location(df_crop_price_merged, df_crop_price_merged_avg, crop, input_dir, output_dir)
             elif level == "county":
                 determine_save_county_index_location(df_crop_price_merged, df_crop_price_merged_avg, crop, output_dir)
         

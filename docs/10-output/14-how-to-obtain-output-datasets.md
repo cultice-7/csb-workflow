@@ -41,7 +41,7 @@ download_elevation → reproject_elevation → calculate_slope → clip_elevatio
 download_watershed
 download_roads
 download_weather → clip_reproject_weather_rasters
-clean_grain_price
+clean_crop_prices
 clip_gSSURGO_mukey_rasters
 ```
 

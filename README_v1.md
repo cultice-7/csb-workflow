@@ -122,7 +122,7 @@ Several raw datasets are proprietary or otherwise not downloadable by the pipeli
 - **Regrow** — create `data/Regrow/2014-2024/` and `data/Regrow/2025/` folders. Place the legacy (2014–2024) field boundary GeoJSONs and Monitor_data exports in `data/Regrow/2014-2024/`, and the 2025 boundary GeoJSONs and 2025 Monitor data exports in `data/Regrow/2025/`.
 - **DISES** — create `data/DISES/` folder. Place the survey export (`combined_data_clean.csv`) and the parcel shapefile (`DISES_All_Parcels_11.12.25.shp`) and all of its sidecar files (`.dbf`, `.shx`, `.prj`, etc.) directly in this folder.
 - **gSSURGO** — create `data/gSSURGO/` folder. Inside it, place the national mukey grid folder (`FY2026_gSSURGO_mukey_grid/`, containing `MURASTER_30m.tif` and its sidecar files) and one `gSSURGO_{state}/` subfolder per study state, each containing that state's `gSSURGO_{state}.gdb` geodatabase.
-- **Barchart elevator price data** — create `data/Grain Price/` folder. Place the raw per-state, per-crop Excel exports here (e.g. `{state}_corn_elevator_level.xlsx`, `{state}_corn_county_level.xlsx`, `{state}_soybeans_elevator_level.xlsx`, `{state}_soybeans_county_level.xlsx`, `{state}_wheat_elevator_level.xlsx` — wheat has no county-level file), plus any manually-curated elevator-location correction spreadsheet referenced by `clean_grain_price.py`.
+- **Barchart elevator price data** — create `data/Grain Price/` folder. Place the raw per-state, per-crop Excel exports here (e.g. `{state}_corn_elevator_level.xlsx`, `{state}_corn_county_level.xlsx`, `{state}_soybeans_elevator_level.xlsx`, `{state}_soybeans_county_level.xlsx`, `{state}_wheat_elevator_level.xlsx` — wheat has no county-level file), plus any manually-curated elevator-location correction spreadsheet referenced by `clean_crop_prices.py`.
 ---
 
 ## 2. Organization Structure of Output Datasets
@@ -235,7 +235,7 @@ download_elevation → reproject_elevation → calculate_slope → clip_elevatio
 download_watershed
 download_roads
 download_weather → clip_reproject_weather_rasters
-clean_grain_price
+clean_crop_prices
 clip_gSSURGO_mukey_rasters
 ```
 
@@ -670,13 +670,13 @@ Implemented in `join_regrow_dises.py`. The merge is built **around the Regrow fi
 1. Each Regrow field polygon is slightly buffered (a small negative margin, `buffer_margin` in config) and intersected against all DISES parcel-holding polygons.
 2. Where a Regrow field overlaps multiple DISES holdings, only the **largest-overlap** DISES match is kept per Regrow field.
 3. Overlap area (in acres) and overlap share (as a percent of the Regrow field's own area) are computed from the *original* (unbuffered) geometries.
-4. A `field_assigned_dises` flag (`Y`/`N`) marks whether any DISES match was found at all.
+4. A `parcel_assigned_dises` flag (`Y`/`N`) marks whether any DISES match was found at all.
 
 #### 4.5.2 What are the outcomes of the matching?
 
 `[TODO — fill in the counts below]`
 
-| State | Regrow fields with a DISES match (`field_assigned_dises == "Y"`) | Regrow fields with a DISES survey (`survey_responded_dises == "Y"`) | Total Regrow fields
+| State | Regrow fields with a DISES match (`parcel_assigned_dises == "Y"`) | Regrow fields with a DISES survey (`survey_responded_dises == "Y"`) | Total Regrow fields
 |---|---|---|---|
 | IN | | | |
 | MI | | | |
@@ -746,8 +746,8 @@ To get the full sample of representative fields, combine fields across all 4 lev
 
 | Sub-sample | Filter |
 |---|---|
-| Regrow fields with an assigned DISES field (survey or not) | `field_assigned_dises == "Y"` |
-| Regrow fields with an assigned DISES field **and** survey data | `field_assigned_dises == "Y"` and `survey_responded_dises == "Y"` |
+| Regrow fields with an assigned DISES field (survey or not) | `parcel_assigned_dises == "Y"` |
+| Regrow fields with an assigned DISES field **and** survey data | `parcel_assigned_dises == "Y"` and `survey_responded_dises == "Y"` |
 | Regrow fields matching the assigned DISES field by size or crop | the above, **and** `match_quality_dises` is one of `"A"`, `"B_area"`, `"B_crop"` |
 
 #### 4.5.7 How to extract DISES-related variables
@@ -776,7 +776,7 @@ Identical methodology to [4.5.1](#451-how-are-regrow-and-dises-spatially-merged)
 
 `[TODO — fill in the counts below]`
 
-| State | CSB fields with a DISES match (`field_assigned_dises == "Y"`) | CSB fields with a DISES survey (`survey_responded_dises == "Y"`) | Total CSB fields |
+| State | CSB fields with a DISES match (`parcel_assigned_dises == "Y"`) | CSB fields with a DISES survey (`survey_responded_dises == "Y"`) | Total CSB fields |
 |---|---|---|---|
 | IN | | | |
 | MI | | | |
@@ -897,7 +897,7 @@ This section catalogs every active script in `scripts/` (excluding `scripts/arch
 
 **`clip_cdl_rasters.py`**: Clips national CDL rasters per state per year (same buffer parameter), producing the `{state}_{year}_30m_cdls_clipped.tif` files used for Regrow's CDL validation. Missing-file years are skipped silently (by design, since not every year may be downloaded yet); any other processing error is re-raised rather than silently skipped.
 
-**`clean_grain_price.py`**: Cleans raw Barchart Excel elevator/county price spreadsheets into monthly average price series and geocodes elevator/county-index locations (via OpenStreetMap Nominatim, with a manually-curated correction file for known bad addresses) for use in supplement 7's nearest-neighbor price join. Drops price series (elevators or county indices) with fewer than a configured minimum number of non-null monthly observations.
+**`clean_crop_prices.py`**: Cleans raw Barchart Excel elevator/county price spreadsheets into monthly average price series and geocodes elevator/county-index locations (via OpenStreetMap Nominatim, with a manually-curated correction file for known bad addresses) for use in supplement 7's nearest-neighbor price join. Drops price series (elevators or county indices) with fewer than a configured minimum number of non-null monthly observations.
 
 **`clip_reproject_weather_rasters.py`**: Reprojects and clips monthly PRISM rasters to each state boundary, producing per-state/variable/month clipped GeoTIFFs used by supplement 6.
 
@@ -933,7 +933,7 @@ This section catalogs every active script in `scripts/` (excluding `scripts/arch
 
 **`clean_dises_shape.py`**: Cleans the raw DISES parcel shapefile, counts the number of distinct tax parcels per farmer (`n_parcels`), then **dissolves** all of a farmer's parcels into one combined multi-part geometry — meaning all downstream Regrow/CSB-to-DISES spatial joins match against a farmer's entire landholding footprint, not individual tax parcels.
 
-**`join_dises_shape_table.py`**: Joins the dissolved DISES geometry with the cleaned survey table on farmer ID, adding a `survey_responded` flag.
+**`join_dises_shape_table.py`**: Joins the dissolved DISES geometry with the cleaned survey table on farmer ID, adding a `survey_responded` flag (`"Y"` for farmers present in the survey table, `"N"` for farmers who only have a landholding/parcel record but no survey response).
 
 ### 6.6 Regrow ↔ DISES join
 

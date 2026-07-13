@@ -105,7 +105,7 @@ This section catalogs every active script in `scripts/` (excluding `scripts/arch
 | File | Scripts covered |
 |---|---|
 | [Download Scripts](40-scripts/41-download-scripts.md) | `download_census_tract.py`, `download_state_bound.py`, `download_county_bound.py`, `download_roads.py`, `download_watershed.py`, `download_weather.py`, `download_csb.py`, `download_cdl.py`, `download_elevation.py` |
-| [Raw Data Processing Scripts](40-scripts/42-raw-data-processing-scripts.md) | `reproject_elevation.py`, `calculate_slope.py`, `clip_elevation_slope.py`, `clip_gSSURGO_mukey_rasters.py`, `clip_cdl_rasters.py`, `clean_grain_price.py`, `clip_reproject_weather_rasters.py`, `clip_csb_shape.py`, `split_csb_shape_table.py`, `check_csb_shape_table.py`, `check_regrow_shape_table.py` |
+| [Raw Data Processing Scripts](40-scripts/42-raw-data-processing-scripts.md) | `reproject_elevation.py`, `calculate_slope.py`, `clip_elevation_slope.py`, `clip_gSSURGO_mukey_rasters.py`, `clip_cdl_rasters.py`, `clean_crop_prices.py`, `clip_reproject_weather_rasters.py`, `clip_csb_shape.py`, `split_csb_shape_table.py`, `check_csb_shape_table.py`, `check_regrow_shape_table.py` |
 | [Regrow Preparation Scripts](40-scripts/43-regrow-preparation-scripts.md) | `join_regrow_2025_updates.py`, `split_save_regrow_geometry.py`, `split_regrow_monitor_by_state.py`, `clean_regrow_table.py`, `join_regrow_shape_table.py` |
 | [Regrow Validation Scripts](40-scripts/44-regrow-validation-scripts.md) | `rasterize_regrow_to_CDL_grid.py`, `join_regrow_cdl.py`, `validate_regrow_crop_with_cdl.py` |
 | [DISES Preparation Scripts](40-scripts/45-dises-preparation-scripts.md) | `clean_dises_table.py`, `clean_dises_shape.py`, `join_dises_shape_table.py` |

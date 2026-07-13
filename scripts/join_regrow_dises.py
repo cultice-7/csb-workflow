@@ -13,6 +13,8 @@ states = snakemake.params.states
 buffer_margin = snakemake.params.buffer_margin
 area_match_lower_bound = snakemake.params["area_match_coefs"][0]
 area_match_upper_bound = snakemake.params["area_match_coefs"][1]
+overlap_threshold = snakemake.params.overlap_threshold
+crop_conf_threshold = snakemake.params.crop_conf_threshold
 target_CRS = snakemake.params.target_CRS
 
 
@@ -73,11 +75,11 @@ for state in states:
     regrow_dises.drop(columns=cols_to_drop, inplace=True)
 
     # Add Regrow-DISES assignment column
-    regrow_dises['field_assigned_dises'] = regrow_dises['overlap_area_dises'].notna().astype(str)
-    regrow_dises['field_assigned_dises'] = regrow_dises['field_assigned_dises'].replace({'True': 'Y', 'False': 'N'})
+    regrow_dises['parcel_assigned_dises'] = regrow_dises['overlap_area_dises'].notna().astype(str)
+    regrow_dises['parcel_assigned_dises'] = regrow_dises['parcel_assigned_dises'].replace({'True': 'Y', 'False': 'N'})
     
     # Calculate overlap area between Regrow and assigned DISES fields (in acres) and its share as % of Regrow field area
-    mask_overplap = regrow_dises['field_assigned_dises'] == 'Y'
+    mask_overplap = regrow_dises['parcel_assigned_dises'] == 'Y'
     regrow_dises.loc[mask_overplap, 'overlap_area_dises'] = (
         intersection(regrow_dises.loc[mask_overplap, 'original_geometry_regrow'], regrow_dises.loc[mask_overplap, 'original_geometry_dises']).area) / 4046.8564224
     regrow_dises.loc[mask_overplap, 'overlap_area_share_dises'] = (
@@ -159,30 +161,27 @@ for state in states:
 
 
 # Add representative field attribute to Regrow fields
-def assign_representative_field(regrow_dises):
-    
-    OVERLAP_THRESHOLD = 0.5
-    CROP_CONF_THRESHOLD = 75
-    
-    mask_field_assigned = regrow_dises['field_assigned_dises'] == 'Y'
+def assign_representative_field(regrow_dises, overlap_threshold, crop_conf_threshold):
+
+    mask_field_assigned = regrow_dises['parcel_assigned_dises'] == 'Y'
     mask_survey_responded = regrow_dises['survey_responded_dises'] == 'Y'
-    mask_overlap_area = regrow_dises["overlap_area_share_dises"] > OVERLAP_THRESHOLD
+    mask_overlap_area = regrow_dises["overlap_area_share_dises"] >= overlap_threshold
     
     regrow_dises_matching = regrow_dises[(mask_field_assigned) & (mask_survey_responded) & (mask_overlap_area)].reset_index(drop=True)
     
     crop_conf_col = regrow_dises_matching[['crop_conf_23_1', 'crop_conf_23_2']].min(axis=1)
-    
-    regrow_dises_matching["RF_level_1_dises"] = (
+
+    level_1 = (
         # A: size + crop match, high confidence
         (regrow_dises_matching["match_quality_dises"] == "A") &
-        (crop_conf_col > CROP_CONF_THRESHOLD)
-    ).replace(False, np.nan)
-    
-    regrow_dises_matching["RF_level_2_dises"] = (
+        (crop_conf_col > crop_conf_threshold)
+    )
+
+    level_2 = (
         # A: size + crop match, low confidence
         (
             (regrow_dises_matching["match_quality_dises"] == "A") &
-            (crop_conf_col <= CROP_CONF_THRESHOLD)
+            (crop_conf_col <= crop_conf_threshold)
         ) |
         # B_area: size match only, crop missing
         (
@@ -193,32 +192,32 @@ def assign_representative_field(regrow_dises):
         (
             (regrow_dises_matching["match_quality_dises"] == "B_crop") &
             (regrow_dises_matching["field_size_dises"].isna()) &
-            (crop_conf_col > CROP_CONF_THRESHOLD)
+            (crop_conf_col > crop_conf_threshold)
         )
-    ).replace(False, np.nan)
-    
-    regrow_dises_matching["RF_level_3_dises"] = (
+    )
+
+    level_3 = (
         # Crop match only, size missing, low confidence
         (
             (regrow_dises_matching["match_quality_dises"] == "B_crop") &
             (regrow_dises_matching["field_size_dises"].isna()) &
-            (crop_conf_col <= CROP_CONF_THRESHOLD)
+            (crop_conf_col <= crop_conf_threshold)
         ) |
         # Size match only, crop mismatch, low confidence
         (
             (regrow_dises_matching["match_quality_dises"] == "B_area") &
             (regrow_dises_matching["field_crop_23_dises"].notna()) &
-            (crop_conf_col <= CROP_CONF_THRESHOLD)
+            (crop_conf_col <= crop_conf_threshold)
         )
-    ).replace(False, np.nan)
-    
-    regrow_dises_matching["RF_level_4_dises"] = (
+    )
+
+    level_4 = (
         # RF size missing, crop mismatch, low confidence
         (
             (regrow_dises_matching["match_quality_dises"] == "F") &
             (regrow_dises_matching["field_size_dises"].isna()) &
             (regrow_dises_matching["field_crop_23_dises"].notna()) &
-            (crop_conf_col <= CROP_CONF_THRESHOLD)
+            (crop_conf_col <= crop_conf_threshold)
         ) |
         # Both RF size and crop missing, only single parcel
         (
@@ -226,22 +225,34 @@ def assign_representative_field(regrow_dises):
             (regrow_dises_matching["field_size_dises"].isna()) &
             (regrow_dises_matching["n_parcels_dises"] == 1)
         )
-    ).replace(False, np.nan)
+    )
+
+    # Collapse the 4 levels into one column. np.select takes the first matching
+    # condition in the list, so Level 1 wins whenever a row happens to qualify for more than one level.
+    regrow_dises_matching["RF_assignment_dises"] = np.select(
+        [level_1, level_2, level_3, level_4],
+        ["Level 1", "Level 2", "Level 3", "Level 4"],
+        default=None
+    )
+    RF_rank_dises = regrow_dises_matching["RF_assignment_dises"].map(
+        {"Level 1": 1, "Level 2": 2, "Level 3": 3, "Level 4": 4}
+    )
 
     regrow_dises_matching["area_diff"] = (regrow_dises_matching["area_acre"] - regrow_dises_matching["field_size_dises"]).abs()
+    regrow_dises_matching["RF_rank_dises"] = RF_rank_dises
     regrow_dises_matching = regrow_dises_matching.sort_values(
-        by=(["comp_id_dises"] + regrow_dises_matching.filter(regex="RF_level_").columns.tolist() + ["area_diff", "overlap_area_share_dises"]),
-        ascending=[True, False, False, False, False, True, False]
+        by=["comp_id_dises", "RF_rank_dises", "area_diff", "overlap_area_share_dises"],
+        ascending=[True, True, True, False]
     )
-    
+
     regrow_dises_matching = regrow_dises_matching.drop_duplicates(subset=["comp_id_dises"], keep="first")
     regrow_dises_matching.reset_index(drop=True, inplace=True)
-    
-    col_to_keep = regrow_dises_matching.filter(regex="field_id|RF_level_").columns
+
+    col_to_keep = regrow_dises_matching.filter(regex="field_id|RF_assignment_dises").columns
     return(regrow_dises_matching[col_to_keep])
 
 
-representative_field_indicator = assign_representative_field(regrow_dises_concat)
+representative_field_indicator = assign_representative_field(regrow_dises_concat, overlap_threshold, crop_conf_threshold)
 del regrow_dises_concat
 
 for state in states:

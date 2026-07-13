@@ -234,7 +234,7 @@ rule clip_reproject_weather_rasters:
         "scripts/clip_reproject_weather_rasters.py"
 
 #---# Clean price data
-rule clean_grain_price:
+rule clean_crop_prices:
     input:
         corn_price = expand("data/Grain Price/{state}_corn_{level}_level.xlsx", state=STATES, level=["elevator", "county"]),
         soybean_price = expand("data/Grain Price/{state}_soybeans_{level}_level.xlsx", state=STATES, level=["elevator", "county"]),
@@ -252,7 +252,7 @@ rule clean_grain_price:
         input_dir = config["price"]["raw_data_dir"],
         output_dir = config["price"]["final_dir"]
     script:
-        "scripts/clean_grain_price.py"
+        "scripts/clean_crop_prices.py"
 
 # Clip gSSURGO mukey raster files
 rule clip_gSSURGO_mukey_rasters:
@@ -585,6 +585,8 @@ rule join_regrow_dises:
         states = STATES_DISES,
         buffer_margin = config["regrow_DISES"]["buffer_margin"],
         area_match_coefs = config["regrow_DISES"]["area_match_coefs"],
+        overlap_threshold = config["regrow_DISES"]["overlap_threshold"],
+        crop_conf_threshold = config["regrow_DISES"]["crop_conf_threshold"],
         target_CRS = config["global_vars"]["target_CRS"]
     script:
         "scripts/join_regrow_dises.py"
@@ -606,6 +608,7 @@ rule join_csb_dises:
         CSB_years = CSB_YEARS,
         buffer_margin = config["csb_DISES"]["buffer_margin"],
         area_match_coefs = config["csb_DISES"]["area_match_coefs"],
+        overlap_threshold = config["csb_DISES"]["overlap_threshold"],
         target_CRS = config["global_vars"]["target_CRS"]
     script:
         "scripts/join_csb_dises.py"

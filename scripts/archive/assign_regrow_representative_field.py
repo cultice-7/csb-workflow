@@ -18,7 +18,7 @@ def assign_representative_field(regrow_dises):
     OVERLAP_THRESHOLD = 0.5
     CROP_CONF_THRESHOLD = 75
     
-    mask_field_assigned = regrow_dises['field_assigned_dises'] == 'Y'
+    mask_field_assigned = regrow_dises['parcel_assigned_dises'] == 'Y'
     mask_survey_responded = regrow_dises['survey_responded_dises'] == 'Y'
     mask_overlap_area = regrow_dises["overlap_area_share_dises"] > OVERLAP_THRESHOLD
     

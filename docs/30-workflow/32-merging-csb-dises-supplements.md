@@ -2,13 +2,19 @@
 
 ## How are CSB and DISES spatially merged?
 
-Identical methodology to [Merging Regrow with DISES and Supplements](31-merging-regrow-dises-supplements.md), implemented in `join_csb_dises.py`, with `CSBID` as the join key and the merge built around the **CSB field** as the primary output unit. One implementation difference: CSB processing loops over `CSB_years` (currently just `"1724"`) as an outer dimension, since Regrow has no year-window concept.
+Implemented in `join_csb_dises.py`. The merge is built **around the CSB field** — CSB field is the primary unit of the output dataset, and DISES attributes are attached to it (not the other way around). The whole procedure is looped once per entry in `CSB_years` (currently just `"1724"`), since CSB (unlike Regrow) is versioned by year-window:
+
+1. Before any spatial join happens, all DISES tax parcels belonging to the same farmer are consolidated into a single record: `clean_dises_shape.py` groups parcels by `comp_id` (the unique farmer identifier) and dissolves each farmer's parcels into one combined **multipolygon** representing their entire landholding footprint (see [DISES Dataset](../20-datasets/23-dises-dataset.md)). This means the unit that CSB fields are actually matched against is "one farmer's combined holdings," not individual tax parcels — so when a CSB field overlaps land belonging to one farmer, that overlap is measured (and the largest-overlap comparison in step 3 below is made) against the farmer's whole multipolygon, not against a single polygon.
+2. Each CSB field polygon is slightly buffered (a small negative margin, `buffer_margin` in config) and intersected against all DISES holding multipolygons.
+3. Where a CSB field overlaps multiple DISES holdings, only the **largest-overlap** DISES match is kept per CSB field (`CSBID`).
+4. Overlap area (in acres) and overlap share (as a percent of the CSB field's own area) are computed from the *original* (unbuffered) geometries.
+5. A `parcel_assigned_dises` flag (`Y`/`N`) marks whether any DISES match was found at all.
 
 ## What are the outcomes of the matching?
 
 `[TODO — fill in the counts below]`
 
-| State | CSB fields with a DISES match (`field_assigned_dises == "Y"`) | CSB fields with a DISES survey (`survey_responded_dises == "Y"`) | Total CSB fields |
+| State | CSB fields with a DISES match (`parcel_assigned_dises == "Y"`) | CSB fields with a DISES survey (`survey_responded_dises == "Y"`) | Total CSB fields |
 |---|---|---|---|
 | IN | | | |
 | MI | | | |

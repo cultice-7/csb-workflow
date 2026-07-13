@@ -4,16 +4,17 @@
 
 Implemented in `join_regrow_dises.py`. The merge is built **around the Regrow field** — Regrow field is the primary unit of the output dataset, and DISES attributes are attached to it (not the other way around):
 
-1. Each Regrow field polygon is slightly buffered (a small negative margin, `buffer_margin` in config) and intersected against all DISES parcel-holding polygons.
-2. Where a Regrow field overlaps multiple DISES holdings, only the **largest-overlap** DISES match is kept per Regrow field.
-3. Overlap area (in acres) and overlap share (as a percent of the Regrow field's own area) are computed from the *original* (unbuffered) geometries.
-4. A `field_assigned_dises` flag (`Y`/`N`) marks whether any DISES match was found at all.
+1. Before any spatial join happens, all DISES tax parcels belonging to the same farmer are consolidated into a single record: `clean_dises_shape.py` groups parcels by `comp_id` (the unique farmer identifier) and dissolves each farmer's parcels into one combined **multipolygon** representing their entire landholding footprint (see [DISES Dataset](../20-datasets/23-dises-dataset.md)). This means the unit that Regrow fields are actually matched against is "one farmer's combined holdings," not individual tax parcels — so when a Regrow field overlaps land belonging to one farmer, that overlap is measured (and the largest-overlap comparison in step 3 below is made) against the farmer's whole multipolygon, not against a single polygon.
+2. Each Regrow field polygon is slightly buffered (a small negative margin, `buffer_margin` in config) and intersected against all DISES holding multipolygons.
+3. Where a Regrow field overlaps multiple DISES holdings, only the **largest-overlap** DISES match is kept per Regrow field.
+4. Overlap area (in acres) and overlap share (as a percent of the Regrow field's own area) are computed from the *original* (unbuffered) geometries.
+5. A `parcel_assigned_dises` flag (`Y`/`N`) marks whether any DISES match was found at all.
 
 ## What are the outcomes of the matching?
 
 `[TODO — fill in the counts below]`
 
-| State | Regrow fields with a DISES match (`field_assigned_dises == "Y"`) | Regrow fields with a DISES survey (`survey_responded_dises == "Y"`) | Total Regrow fields
+| State | Regrow fields with a DISES match (`parcel_assigned_dises == "Y"`) | Regrow fields with a DISES survey (`survey_responded_dises == "Y"`) | Total Regrow fields
 |---|---|---|---|
 | IN | | | |
 | MI | | | |
@@ -83,8 +84,8 @@ To get the full sample of representative fields, combine fields across all 4 lev
 
 | Sub-sample | Filter |
 |---|---|
-| Regrow fields with an assigned DISES field (survey or not) | `field_assigned_dises == "Y"` |
-| Regrow fields with an assigned DISES field **and** survey data | `field_assigned_dises == "Y"` and `survey_responded_dises == "Y"` |
+| Regrow fields with an assigned DISES field (survey or not) | `parcel_assigned_dises == "Y"` |
+| Regrow fields with an assigned DISES field **and** survey data | `parcel_assigned_dises == "Y"` and `survey_responded_dises == "Y"` |
 | Regrow fields matching the assigned DISES field by size or crop | the above, **and** `match_quality_dises` is one of `"A"`, `"B_area"`, `"B_crop"` |
 
 ## How to extract DISES-related variables

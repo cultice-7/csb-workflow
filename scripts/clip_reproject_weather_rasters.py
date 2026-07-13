@@ -84,4 +84,4 @@ for variable in weather_variables:
                 dst_crs=target_CRS
             )
             
-            print(f"Weather raster for {state} and {file} is successfully reprojected and clipped")
+        print(f"Weather raster for {state} is successfully reprojected and clipped")

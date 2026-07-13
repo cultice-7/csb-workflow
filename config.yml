@@ -34,11 +34,14 @@ DISES:
 regrow_DISES:
   buffer_margin: -10 # how much to shrink (or erode if positive) Regrow polygon inward before overplaying with DISES parcels
   area_match_coefs: [0.75, 1.25]
+  overlap_threshold: 0.5 # minimum overlap_area_share_dises for a Regrow field to be considered a representative-field candidate
+  crop_conf_threshold: 75 # minimum Regrow crop-confidence score for the highest representative-field tiers
   final_dir: "data/edited/Regrow"
 
 csb_DISES:
   buffer_margin: -10 # how much to shrink (or erode if positive) CSB polygon inward before overplaying with DISES parcels
   area_match_coefs: [0.75, 1.25]
+  overlap_threshold: 0.5 # minimum overlap_area_share_dises for a CSB field to be considered a representative-field candidate
   final_dir: "data/edited/CSB"
 
 regrow_supplement:
