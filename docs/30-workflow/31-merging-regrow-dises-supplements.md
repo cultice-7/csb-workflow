@@ -56,9 +56,9 @@ The procedure (from `Representative Field Attribute. Supporting Documentation.md
    - **Level 4** (low): `"F"` with size missing, a crop mismatch, and confidence ≤ 75%; or both size and crop answers missing but the farmer has only a single DISES holding (`n_parcels_dises = 1`), making that the only possible candidate by elimination.
 3. **One representative field per farmer**: among all of a farmer's eligible candidates, the highest-likelihood-level field is kept; ties are broken by closest area match, then by largest overlap share.
 
-To get the full sample of representative fields, combine fields across all 4 levels (`RF_level_1_dises` … `RF_level_4_dises`).
+All 4 tiers are collapsed into a single `RF_assignment_dises` column, valued `"Level 1"`…`"Level 4"` (or missing, for fields that were never eligible or weren't the farmer's best candidate). To get the full sample of representative fields, select all rows where `RF_assignment_dises` is not missing.
 
-> **Note on the CSB-side equivalent (`join_csb_dises.py`)**: the same tiered logic applies, but **without a confidence-score dimension**, since CDL/CSB has no per-field confidence analog to Regrow's ML crop confidence. CSB's `RF_level_1` is therefore simply `match_quality_dises == "A"` with no confidence split, and `RF_level_2`/`RF_level_3` collapse the Regrow version's confidence-based sub-branches into their non-confidence conditions only. This is an intentional simplification driven by data availability, not an oversight.
+> **Note on the CSB-side equivalent (`join_csb_dises.py`)**: the same tiered logic applies, but **without a confidence-score dimension**, since CDL/CSB has no per-field confidence analog to Regrow's ML crop confidence. CSB's `RF_assignment_dises == "Level 1"` is therefore simply `match_quality_dises == "A"` with no confidence split, and `"Level 2"`/`"Level 3"` collapse the Regrow version's confidence-based sub-branches into their non-confidence conditions only. This is an intentional simplification driven by data availability, not an oversight.
 
 ## What are the outcomes of the matching quality procedure?
 
@@ -72,12 +72,12 @@ To get the full sample of representative fields, combine fields across all 4 lev
 | `F` | |
 | **Total matched** | |
 
-| Representative field level | Count |
+| `RF_assignment_dises` | Count |
 |---|---|
-| `RF_level_1_dises` | |
-| `RF_level_2_dises` | |
-| `RF_level_3_dises` | |
-| `RF_level_4_dises` | |
+| `Level 1` | |
+| `Level 2` | |
+| `Level 3` | |
+| `Level 4` | |
 | **Total representative fields** | |
 
 ## How to generate Regrow sub-samples with available DISES data
@@ -90,14 +90,14 @@ To get the full sample of representative fields, combine fields across all 4 lev
 
 ## How to extract DISES-related variables
 
-Every column originating from or derived from the DISES dataset carries the suffix `_dises` (e.g. `field_crop_23_dises`, `match_quality_dises`, `RF_level_1_dises`).
+Every column originating from or derived from the DISES dataset carries the suffix `_dises` (e.g. `field_crop_23_dises`, `match_quality_dises`, `RF_assignment_dises`).
 
 ## Merging Regrow with each supplementary dataset
 
-Each supplementary join is implemented as its own script and produces its own standalone output table (joined to the host dataset only by `field_id`, not chained to each other) — see [Supplementary Farmland Characteristics](../20-datasets/24-supplementary-data.md) for the per-supplement methodology, and [Script Reference](../40-scripts/01-overview.md) for full script-level detail. The one exception is **supplement 9**, which is keyed on `county_state_name` rather than `field_id` — see [Supplementary Farmland Characteristics](../20-datasets/24-supplementary-data.md) for how it's built and matched.
+Each supplementary join is implemented as its own script and produces its own standalone output table (joined to the host dataset only by `field_id`, not chained to each other) — see [Supplementary Farmland Characteristics](../20-datasets/24-supplementary-data.md) for the per-supplement methodology, and [Script Reference](../40-scripts/01-overview.md) for full script-level detail. The one exception is **the USDA Census of Agriculture block** (`join_regrow_ag_census`), which is keyed on `county_state_name` rather than `field_id` — see [Supplementary Farmland Characteristics](../20-datasets/24-supplementary-data.md) for how it's built and matched.
 
 ## Output dataset structure and integration
 
-Output files generally follow the pattern `{state}_regrow_<block>_table.parquet` — one file per state per data block, e.g. `{state}_regrow_table.parquet` for the base table, `{state}_regrow_dises_table.parquet` for the DISES join, and `{state}_regrow_supplement_{n}_table.parquet` for supplement `n`.
+Output files generally follow the pattern `{state}_regrow_<block>_table.parquet` — one file per state per data block, e.g. `{state}_regrow_table.parquet` for the base table, `{state}_regrow_dises_table.parquet` for the DISES join, and `{state}_regrow_census_tract_table.parquet` / `{state}_regrow_ag_census_table.parquet` for the supplementary blocks.
 
 To combine multiple blocks into one field-level dataset, merge them on `field_id` — every block's table has one row per Regrow field (fields with no DISES or supplement match still have a row, just with missing values), so `field_id` is always the key to use when joining any two of these tables together.

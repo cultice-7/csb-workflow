@@ -5,13 +5,13 @@
 > **Regrow Data**
 > - Regrow Output Dataset Schema:
 > - Regrow Dataset Overview (slide deck):
-> - Regrow_DISES_Supplementary_1-9 Codebook:
+> - Regrow_DISES_Supplementary_Data Codebook:
 > - Regrow Raw Data Explainer:
 >
 > **CSB Data**
 > - CSB Output Dataset Schema:
 > - CSB Dataset Overview (slide deck):
-> - CSB1724_DISES_Supplementary_1-9 Codebook:
+> - CSB1724_DISES_Supplementary_Data Codebook:
 >
 > **DISES Data**
 > - DISES Codebook:

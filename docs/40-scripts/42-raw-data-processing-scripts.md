@@ -6,13 +6,13 @@
 
 **`clip_elevation_slope.py`**: Clips the national reprojected elevation and slope rasters to each state boundary, with an outward buffer (`state_buffer_margin` in config) to retain context just past the state line.
 
-**`clip_gSSURGO_mukey_rasters.py`**: Clips the national gSSURGO 30m mukey raster to each state boundary (same buffer parameter) to produce the per-state soil map-unit grids used later in supplement 8.
+**`clip_gSSURGO_mukey_rasters.py`**: Clips the national gSSURGO 30m mukey raster to each state boundary (same buffer parameter) to produce the per-state soil map-unit grids used later in the soil composition join.
 
 **`clip_cdl_rasters.py`**: Clips national CDL rasters per state per year (same buffer parameter), producing the `{state}_{year}_30m_cdls_clipped.tif` files used for Regrow's CDL validation. Missing-file years are skipped silently (by design, since not every year may be downloaded yet); any other processing error is re-raised rather than silently skipped.
 
-**`clean_crop_prices.py`**: Cleans raw Barchart Excel elevator/county price spreadsheets into monthly average price series and geocodes elevator/county-index locations (via OpenStreetMap Nominatim, with a manually-curated correction file for known bad addresses) for use in supplement 7's nearest-neighbor price join. Drops price series (elevators or county indices) with fewer than a configured minimum number of non-null monthly observations.
+**`clean_crop_prices.py`**: Cleans raw Barchart Excel elevator/county price spreadsheets into monthly average price series and geocodes elevator/county-index locations (via OpenStreetMap Nominatim, with a manually-curated correction file for known bad addresses) for use in the crop price supplement's nearest-neighbor price join. Drops price series (elevators or county indices) with fewer than a configured minimum number of non-null monthly observations.
 
-**`clip_reproject_weather_rasters.py`**: Reprojects and clips monthly PRISM rasters to each state boundary, producing per-state/variable/month clipped GeoTIFFs used by supplement 6.
+**`clip_reproject_weather_rasters.py`**: Reprojects and clips monthly PRISM rasters to each state boundary, producing per-state/variable/month clipped GeoTIFFs used by the weather supplement.
 
 **`clip_csb_shape.py`**: Extracts each state's portion of the national CSB geodatabase via an attribute filter on `STATEFIPS`, saving one parquet per state per CSB year-window.
 

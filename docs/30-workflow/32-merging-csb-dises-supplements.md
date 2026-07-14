@@ -48,12 +48,12 @@ Same purpose and tiering as [the Regrow side](31-merging-regrow-dises-supplement
 | `F` | |
 | **Total matched** | |
 
-| Representative field level | Count |
+| `RF_assignment_dises` | Count |
 |---|---|
-| `RF_level_1_dises` | |
-| `RF_level_2_dises` | |
-| `RF_level_3_dises` | |
-| `RF_level_4_dises` | |
+| `Level 1` | |
+| `Level 2` | |
+| `Level 3` | |
+| `Level 4` | |
 | **Total representative fields** | |
 
 ## How to generate CSB sub-samples with available DISES data
@@ -66,10 +66,10 @@ Same `_dises` suffix convention as the Regrow branch.
 
 ## Merging CSB with each supplementary dataset
 
-Structurally near-identical to the Regrow-side scripts (same spatial-join methodology per supplement), with `CSBID` substituted for `field_id` and an added outer loop over `CSB_years`. Note that **Supplement 9** is structurally different from the rest: it's keyed on `county_state_name` rather than `CSBID` — see [Supplementary Farmland Characteristics](../20-datasets/24-supplementary-data.md).
+Structurally near-identical to the Regrow-side scripts (same spatial-join methodology per supplement), with `CSBID` substituted for `field_id` and an added outer loop over `CSB_years`. Note that **the USDA Census of Agriculture block** (`join_csb_ag_census`) is structurally different from the rest: it's keyed on `county_state_name` rather than `CSBID` — see [Supplementary Farmland Characteristics](../20-datasets/24-supplementary-data.md).
 
 ## Output dataset structure and integration
 
-Output files generally follow the pattern `{state}_CSB{years}_<block>_table.parquet` — e.g. `{state}_CSB{years}_table.parquet` for the base table, `{state}_CSB{years}_dises_table.parquet` for the DISES join, and `{state}_CSB{years}_supplement_{n}_table.parquet` for supplement `n`.
+Output files generally follow the pattern `{state}_CSB{years}_<block>_table.parquet` — e.g. `{state}_CSB{years}_table.parquet` for the base table, `{state}_CSB{years}_dises_table.parquet` for the DISES join, and `{state}_CSB{years}_census_tract_table.parquet` / `{state}_CSB{years}_ag_census_table.parquet` for the supplementary blocks.
 
 To combine multiple blocks into one field-level dataset, merge them on `CSBID` — every block's table has one row per CSB field (fields with no DISES or supplement match still have a row, just with missing values), so `CSBID` is always the key to use when joining any two of these tables together.

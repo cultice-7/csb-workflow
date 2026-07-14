@@ -151,4 +151,4 @@ Grigoriy Baranov, Ohio State University: <baranov.4@osu.edu>
 
 ## Current Project Status
 
-> **Status of this document:** This is a draft README supporting the code pipeline developed for the SAS project. The file is assembled from the project README (10Mar2026), the representative-field methodology memo, the script order memo, the Snakefile, and a full read-through of every active script in `scripts/`.
+> **Status of this document:** This is the first release of the entirely updated README supporting the code pipeline developed for the SAS project. The documentation is assembled from the intital project README (10Mar2026), the representative-field methodology memo, the script order memo, the Snakefile file, and the key methodological steps implemeted in active scripts in `scripts/`.

@@ -12,7 +12,7 @@ regrow_input_folder = snakemake.params.regrow_input_dir
 regrow_raster_input_folder = snakemake.params.regrow_raster_input_dir
 regrow_checks_folder = snakemake.params.regrow_checks_dir
 regrow_validation_output_folder = snakemake.params.regrow_validation_dir
-CDL_input_folder = snakemake.params.CDL_input_dir
+CDL_input_folder = snakemake.params.cdl_input_dir
 states = snakemake.params.states
 years_range = snakemake.params.years
 
@@ -97,7 +97,7 @@ os.makedirs(Path(regrow_validation_output_folder), exist_ok = True)
 for state in states:
     # Paths to input and output files
     regrow_table_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_table.parquet")
-    regrow_cdl_output_path = os.path.join(regrow_validation_output_folder, f"{state}_regrow_cdl_validation.parquet")
+    regrow_cdl_output_path = os.path.join(regrow_validation_output_folder, f"{state}_regrow_cdl_validation_table.parquet")
     
     # Read Regrow input files
     regrow_table = pd.read_parquet(regrow_table_input_path)

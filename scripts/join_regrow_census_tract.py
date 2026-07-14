@@ -51,34 +51,45 @@ for state in states:
         #---# Centroid point-in-polygon spatial joins (faster tool)
         # Ensure both datasets are in the same projected CRS
         tract_boundaries = tract_boundaries.to_crs(target_CRS)
+
+        # Build the county_state_name variable, used as a key to join county-level data (e.g. supplement 9/USDA Ag Census)
+        tract_boundaries['county_state_name'] = tract_boundaries['county_name'] + '_' + tract_boundaries['state_name']
         
         # Compute centroids for fields (faster than polygon intersections)
-        parcel_centroids = regrow_shape.copy()
-        parcel_centroids["geometry"] = parcel_centroids.geometry.centroid
+        field_centroids = regrow_shape.copy()
+        field_centroids["geometry"] = field_centroids.geometry.centroid
 
         # Spatial join: assign each field centroid to the tract it falls within
-        joined = gpd.sjoin(parcel_centroids, tract_boundaries, how="left", predicate="within")
-        
+        joined = gpd.sjoin(field_centroids, tract_boundaries, how="left", predicate="within")
+
+        # Guard against overlapping/invalid tract polygons producing more than one match per centroid
+        assert not joined['field_id'].duplicated().any(), (
+            "A field centroid matched more than one Census tract — check tract_boundaries for overlapping polygons"
+        )
+
         # Identify unmatched fields
         unmatched_mask = joined['census_tract_id'].isna()
-        
+
         # For unmatched fields, find the nearest existing Census tract
         nearest_tract = gpd.sjoin_nearest(joined.loc[unmatched_mask, ['field_id', 'geometry']], tract_boundaries, how='left', distance_col='distance')
-        
-        # Align the indices of the joined and nearest-tract dataframes to fill rows only for unmatched fields
-        nearest_tract.index = joined.loc[unmatched_mask].index
+
+        # Break ties deterministically if a centroid is exactly equidistant from more than one tract
+        nearest_tract = nearest_tract.drop_duplicates(subset='field_id', keep='first')
 
         # Replace rows without assigned tract data in joined
-        joined.update(nearest_tract, overwrite=False)
+        # Index both frames on field_id so .update() aligns by key, not row position
+        joined = joined.set_index('field_id', drop=False)
+        joined.update(nearest_tract.set_index('field_id', drop=False), overwrite=False)
+        joined = joined.reset_index(drop=True)
 
         # Columns you want to bring back from the join
-        cols_to_merge = ["field_id", "state_id", "state_name", "county_id", "county_name", "census_tract_id", "tract_land_area", "tract_water_area"]
+        cols_to_merge = ["field_id", "state_id", "state_name", "county_id", "county_name", "county_state_name", "census_tract_id", "tract_land_area", "tract_water_area"]
 
         # Keep only existing columns
         cols_available = [col for col in cols_to_merge if col in joined.columns]
 
         # Merge the tract attributes back to the original polygons
-        regrow_shape = regrow_shape.merge(joined[cols_available], on="field_id", how="left", suffixes=("", "_temp"))
+        regrow_shape = regrow_shape.merge(joined[cols_available], on="field_id", how="left", suffixes=("", "_temp"), validate="one_to_one")
 
         # Drop temp duplicates if any (from suffixes) and the spatial join index
         cols_to_drop = [col for col in regrow_shape.columns if col.endswith("_temp")]
@@ -89,6 +100,7 @@ for state in states:
         print(f"Error processing slope: {e}")
         raise
     
+
     # Check whether there are any missing values
     cols_to_check = ['field_id', 'state_id', 'county_id', 'census_tract_id']
     if regrow_shape[cols_to_check].isna().any().any():

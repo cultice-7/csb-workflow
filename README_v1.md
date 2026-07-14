@@ -136,9 +136,16 @@ The pipeline produces output in two parallel branches — one based on **Regrow*
 | `split_save_regrow_geometry` | `{state}_regrow_fieldID_geometry.parquet` / `.gpkg` | `field_id` + geometry only |
 | `join_regrow_shape_table` | `{state}_regrow_table.parquet` | All Regrow attribute columns (tillage, cover crop, main crop, cultivation cycle dates/confidence), no geometry |
 | `join_regrow_dises` | `{state}_regrow_dises_table.parquet` | DISES survey variables (suffix `_dises`) + match-quality + representative-field indicators, joined to each Regrow field |
-| `join_regrow_supplement_1` … `join_regrow_supplement_8` (+ `cut_regrow_supplement_7`) | `{state}_regrow_supplement_{1-8}_table.parquet` (supplement 7 also has a `_table_reduced` variant) | One file per supplementary data block (see [2.3](#23-supplementary-data-codes)). The `_table_reduced` variant of supplement 7 exists because the full file contains nearest-single-elevator price data that is sensitive and not cleared for distribution — `cut_regrow_supplement_7.py` drops those columns before the reduced file is shared (see the corresponding script for exactly which columns are removed) |
-| `join_regrow_supplement_9` | `{state}_regrow_supplement_9_table.parquet` | **County-level**, not field-level — see [2.3](#23-supplementary-data-codes) and [4.4](#44-supplementary-farmland-characteristics) |
-| `join_regrow_cdl` / `validate_regrow_crop_with_cdl` | `{state}_regrow_cdl_validation.parquet`, `{state}_regrow_cdl_summary_by_crop_category.xlsx` | Internal validation of Regrow main-crop calls against USDA CDL — not a "supplementary data" file per se, but a QA output |
+| `join_regrow_census_tract` | `{state}_regrow_census_tract_table.parquet` | Census tract/county/state boundaries |
+| `join_regrow_elevation_slope` | `{state}_regrow_elevation_slope_table.parquet` | Elevation & slope |
+| `join_regrow_watershed` | `{state}_regrow_watershed_table.parquet` | Watershed (HUC8/10/12) |
+| `join_regrow_nearest_roads` | `{state}_regrow_nearest_roads_table.parquet` | Distance to primary/secondary roads |
+| `join_regrow_neighbor_field_mgmt` | `{state}_regrow_neighbor_field_mgmt_table.parquet` | Neighboring-field land management |
+| `join_regrow_weather` | `{state}_regrow_weather_table.parquet` | Weather (PRISM) |
+| `join_regrow_crop_prices` (+ `cut_regrow_crop_prices`) | `{state}_regrow_crop_prices_table.parquet` (+ `_table_reduced` variant) | Crop price (elevator & county level). The `_table_reduced` variant exists because the full file contains nearest-single-elevator price data that is sensitive and not cleared for distribution — `cut_regrow_crop_prices.py` drops those columns before the reduced file is shared |
+| `join_regrow_soil_composition` | `{state}_regrow_soil_composition_table.parquet` | Soil composition |
+| `join_regrow_ag_census` | `{state}_regrow_ag_census_table.parquet` | USDA Census of Agriculture — **county-level**, not field-level — see [4.4](#44-supplementary-farmland-characteristics) |
+| `join_regrow_cdl` / `validate_regrow_crop_with_cdl` | `{state}_regrow_cdl_validation_table.parquet`, `{state}_regrow_cdl_summary_by_crop_category.xlsx` | Internal validation of Regrow main-crop calls against USDA CDL — not a "supplementary data" file per se, but a QA output |
 
 States covered: `IA, IL, IN, MI, MN, OH, WI`. DISES join is only produced for `IN, MI, OH` (the states where DISES survey data exists).
 
@@ -151,37 +158,30 @@ Built around the **CSB field** (`CSBID`) instead of the Regrow field, with an ad
 | `split_csb_shape_table` | `{state}_CSB{years}_CSBID_geometry.parquet` / `.gpkg` | `CSBID` + geometry only |
 | `split_csb_shape_table` | `{state}_CSB{years}_table.parquet` | All CSB attribute columns (`CSBACRES` + one `CDL{year}` main-crop column per year in the release window, `CDL2017`…`CDL2024`), no geometry |
 | `join_csb_dises` | `{state}_CSB{years}_dises_table.parquet` | DISES survey variables (suffix `_dises`) + match-quality + representative-field indicators, joined to each CSB field |
-| `join_csb_supplement_1` … `join_csb_supplement_8` (+ `cut_csb_supplement_7`) | `{state}_CSB{years}_supplement_{1-8}_table.parquet` | One file per supplementary data block (see [2.3](#23-supplementary-data-codes)). As with the Regrow branch, the `_table_reduced` variant of supplement 7 drops nearest-single-elevator price data that is not cleared for distribution |
-| `join_csb_supplement_9` | `{state}_CSB{years}_supplement_9_table.parquet` | **County-level**, not field-level — see [2.3](#23-supplementary-data-codes) and [4.4](#44-supplementary-farmland-characteristics) |
+| `join_csb_census_tract` | `{state}_CSB{years}_census_tract_table.parquet` | Census tract/county/state boundaries |
+| `join_csb_elevation_slope` | `{state}_CSB{years}_elevation_slope_table.parquet` | Elevation & slope |
+| `join_csb_watershed` | `{state}_CSB{years}_watershed_table.parquet` | Watershed (HUC8/10/12) |
+| `join_csb_nearest_roads` | `{state}_CSB{years}_nearest_roads_table.parquet` | Distance to primary/secondary roads |
+| `join_csb_neighbor_field_mgmt` | `{state}_CSB{years}_neighbor_field_mgmt_table.parquet` | Neighboring-field land management |
+| `join_csb_weather` | `{state}_CSB{years}_weather_table.parquet` | Weather (PRISM) |
+| `join_csb_crop_prices` (+ `cut_csb_crop_prices`) | `{state}_CSB{years}_crop_prices_table.parquet` (+ `_table_reduced` variant) | Crop price (elevator & county level). The `_table_reduced` variant drops nearest-single-elevator price data that is not cleared for distribution |
+| `join_csb_soil_composition` | `{state}_CSB{years}_soil_composition_table.parquet` | Soil composition |
+| `join_csb_ag_census` | `{state}_CSB{years}_ag_census_table.parquet` | USDA Census of Agriculture — **county-level**, not field-level — see [4.4](#44-supplementary-farmland-characteristics) |
 
-### 2.3 Supplementary data codes
-
-| Code | Topic |
-|---|---|
-| 1 | Census tract / county / state boundaries |
-| 2 | Elevation & slope |
-| 3 | Watershed (HUC8/10/12) |
-| 4 | Distance to primary/secondary roads |
-| 5 | Neighboring-field land management |
-| 6 | Weather (PRISM) |
-| 7 | Crop price (elevator & county level) |
-| 8 | Soil composition |
-| 9 | USDA Census of Agriculture (county-level) |
-
-### 2.4 Dataset schema reference links
+### 2.3 Dataset schema reference links
 
 > **`[TODO — paste links here]`**
 >
 > **Regrow Data**
 > - Regrow Output Dataset Schema:
 > - Regrow Dataset Overview (slide deck):
-> - Regrow_DISES_Supplementary_1-9 Codebook:
+> - Regrow_DISES_Supplementary_Data Codebook:
 > - Regrow Raw Data Explainer: 
 >
 > **CSB Data**
 > - CSB Output Dataset Schema:
 > - CSB Dataset Overview (slide deck):
-> - CSB1724_DISES_Supplementary_1-9 Codebook:
+> - CSB1724_DISES_Supplementary_Data Codebook:
 >
 > **DISES Data**
 > - DISES Codebook:
@@ -220,10 +220,10 @@ Snakemake will automatically build all upstream dependencies of whatever rule yo
 snakemake <rule_name> --cores <N>
 ```
 
-For example, to merge Regrow with supplement 1 to get the `{state}_regrow_supplement_1_table` output file:
+For example, to merge Regrow with the census tract data to get the `{state}_regrow_census_tract_table` output file:
 
 ```bash
-snakemake join_regrow_supplement_1 --cores 1
+snakemake join_regrow_census_tract --cores 1
 ```
 
 ### 3.3 Recommended execution chains
@@ -255,15 +255,20 @@ clean_regrow_table
 join_regrow_shape_table
 check_regrow_shape_table
 ```
-(`rasterize_regrow_to_gSSURGO_grid` also belongs in this chain if you intend to run supplement 8.)
+(`rasterize_regrow_to_gSSURGO_grid` also belongs in this chain if you intend to run the soil composition join.)
 
 **D. Regrow + DISES + supplementary joins:**
 ```
 join_regrow_dises
-join_regrow_supplement_1 … join_regrow_supplement_6
-join_regrow_supplement_7 → cut_regrow_supplement_7
-join_regrow_supplement_8  (requires rasterize_regrow_to_gSSURGO_grid first)
-join_regrow_supplement_9  (requires join_regrow_supplement_1 first)
+join_regrow_census_tract
+join_regrow_elevation_slope
+join_regrow_watershed
+join_regrow_nearest_roads
+join_regrow_neighbor_field_mgmt
+join_regrow_weather
+join_regrow_crop_prices → cut_regrow_crop_prices
+join_regrow_soil_composition  (requires rasterize_regrow_to_gSSURGO_grid first)
+join_regrow_ag_census  (requires join_regrow_census_tract first)
 ```
 
 **E. CSB data preparation:**
@@ -272,16 +277,21 @@ download_csb
 clip_csb_shape
 split_csb_shape_table
 check_csb_shape_table
-rasterize_CSB_to_gSSURGO_grid   (only needed for supplement 8)
+rasterize_CSB_to_gSSURGO_grid   (only needed for the soil composition join)
 ```
 
 **F. CSB + DISES + supplementary joins:**
 ```
 join_csb_dises
-join_csb_supplement_1 … join_csb_supplement_6
-join_csb_supplement_7 → cut_csb_supplement_7
-join_csb_supplement_8
-join_csb_supplement_9  (requires join_csb_supplement_1 first)
+join_csb_census_tract
+join_csb_elevation_slope
+join_csb_watershed
+join_csb_nearest_roads
+join_csb_neighbor_field_mgmt
+join_csb_weather
+join_csb_crop_prices → cut_csb_crop_prices
+join_csb_soil_composition
+join_csb_ag_census  (requires join_csb_census_tract first)
 ```
 
 **G. Regrow validation against CDL (optional, independent of the merge chains above):**
@@ -627,31 +637,31 @@ Land management decisions are plausibly influenced by physical, economic, and lo
 
 **What supplementary farmland characteristics are available?**
 
-| # | Topic | Source | Static or dynamic | Time coverage | Resolution |
-|---|---|---|---|---|---|
-| 1 | Census tract/county/state boundaries | TIGER 2023 | Static | 2023 release | Tract-level polygons |
-| 2 | Elevation & slope | USGS 3DEP | Static | Current 3DEP survey | 1 arc-second (~30m) |
-| 3 | Watershed (HUC8/10/12) | USGS 3DHP / NHD | Static | Current NHD/3DHP delineation | Polygon (subbasin/watershed/subwatershed) |
-| 4 | Roads (primary/secondary) | TIGER PRISECROADS 2023 | Static | 2023 release | Vector lines |
-| 5 | Neighboring-field land management | Derived from Regrow/CSB itself | Dynamic | Same years as host dataset (Regrow: 2014–2025, CSB: 2017–2024) | Field-level, derived from the host dataset itself |
-| 6 | Weather (PRISM) | PRISM AN Monthly | Dynamic | Monthly, 2014–2025 | 800m |
-| 7 | Crop price (elevator & county) | Barchart (proprietary) | Dynamic | Monthly; price series with fewer than a configured minimum number of observations between 2015 and 2025 are dropped | Point-level (elevator) / county-level (index), spatially interpolated to fields |
-| 8 | Soil composition | gSSURGO | Static | Current gSSURGO survey release | 30m (map-unit raster) |
-| 9 | USDA Census of Agriculture (county-level) | USDA NASS QuickStats | Static | 2017 & 2022 Census of Agriculture | County-level (not field-level) |
+| Topic | Source | Static or dynamic | Time coverage | Resolution |
+|---|---|---|---|---|
+| Census tract/county/state boundaries | TIGER 2023 | Static | 2023 release | Tract-level polygons |
+| Elevation & slope | USGS 3DEP | Static | Current 3DEP survey | 1 arc-second (~30m) |
+| Watershed (HUC8/10/12) | USGS 3DHP / NHD | Static | Current NHD/3DHP delineation | Polygon (subbasin/watershed/subwatershed) |
+| Roads (primary/secondary) | TIGER PRISECROADS 2023 | Static | 2023 release | Vector lines |
+| Neighboring-field land management | Derived from Regrow/CSB itself | Dynamic | Same years as host dataset (Regrow: 2014–2025, CSB: 2017–2024) | Field-level, derived from the host dataset itself |
+| Weather (PRISM) | PRISM AN Monthly | Dynamic | Monthly, 2014–2025 | 800m |
+| Crop price (elevator & county) | Barchart (proprietary) | Dynamic | Monthly; price series with fewer than a configured minimum number of observations between 2015 and 2025 are dropped | Point-level (elevator) / county-level (index), spatially interpolated to fields |
+| Soil composition | gSSURGO | Static | Current gSSURGO survey release | 30m (map-unit raster) |
+| USDA Census of Agriculture (county-level) | USDA NASS QuickStats | Static | 2017 & 2022 Census of Agriculture | County-level (not field-level) |
 
 "Static" means the dataset reflects conditions at a single point in time (e.g. one published survey/release), rather than tracking change over time. "2023 release" means the specific TIGER vintage published by Census in 2023 — i.e., the dataset as it existed at that one publication date, not a 2023 measurement of a changing quantity.
 
 **What datasets are used to generate each supplementary block? — detail**
 
-- **Supplement 1 (Census tract)**: TIGER 2023 Cartographic Boundary Files. Fields are matched to their containing census tract by a centroid-in-polygon spatial join (point-in-polygon, faster than full overlay); fields whose centroid falls outside all tract polygons due to boundary precision issues fall back to a nearest-tract join. Adds state/county/tract identifiers and tract land/water area.
-- **Supplement 2 (Elevation & slope)**: USGS 3DEP 1-arc-second elevation, reprojected to the project's equal-area CRS (EPSG:5070) and used to derive slope (degrees) via GDAL's DEM processing. Field-level values are the **zonal mean** elevation/slope under each field's polygon footprint.
-- **Supplement 3 (Watershed)**: USGS 3DHP/NHD hydrologic unit boundaries at three nested levels — subbasin (HUC8), watershed (HUC10), subwatershed (HUC12) — matched to fields via the same centroid-in-polygon approach as supplement 1.
-- **Supplement 4 (Roads)**: TIGER 2023 PRISECROADS (primary + secondary roads). Computes nearest-road distance per field via nearest-neighbor spatial join, with primary roads (MTFCC class S1100) preferred over secondary (S1200) when distances tie.
-- **Supplement 5 (Neighboring-field land management)**: Derived entirely from the host dataset (Regrow or CSB) itself — no external source. Fields sharing a boundary or overlapping with a given field are identified via spatial self-join; tillage/cover-crop values (Regrow only) are averaged across neighbors, and main-crop composition is summarized as an area-weighted share of neighboring acreage across crop groups (corn / soybean / wheat / other). The CSB-side version computes only the crop-composition share, since CSB has no tillage/cover-crop fields to average.
-- **Supplement 6 (Weather)**: PRISM AN Monthly Time Series, 6 variables (precipitation, min/max temperature, mean dew point, min/max vapor pressure deficit), 2014–2025, 800m resolution. Field-level values are extracted as a **point sample at the field centroid** (not a full zonal average) for performance — column names use `_centroid_` to reflect this.
-- **Supplement 7 (Crop price)**: Barchart elevator-level monthly cash prices for corn/soybeans/wheat, and county-level monthly cash prices for corn/soybeans (no county series for wheat). Field-level values are computed via a K-D tree nearest-neighbor search against geocoded elevator/county locations, both as a "nearest with gap-filling from the next-nearest" series and as a distance-weighted average across the `N` nearest locations (own-county is always prioritized first in the county-level search, when available). The single-nearest-elevator series is dropped in a post-processing step (`cut_*_supplement_7`), keeping only the N-nearest weighted average and the county-level series in the final `_table_reduced` file.
-- **Supplement 8 (Soil/gSSURGO)**: Gridded SSURGO database (USDA NRCS), 30m map-unit (mukey) raster, joined to detailed component/horizon tabular soil data. For each field, the dominant soil component's categorical attributes (`drainagecl`, `cropprodindex`, `resdept_r`) are taken from the single most areally-significant soil component per map unit; continuous physical/chemical properties (`sandtotal_r`, `claytotal_r`, `ph1to1h2o_r`) are depth-weighted to a configurable target depth (`soil_depth_cm`, currently 30cm) and then averaged across all map units intersecting the field, weighted by pixel coverage (i.e., area-weighted); `slopegraddcp` is taken directly as a pre-aggregated mukey-level attribute.
-- **Supplement 9 (USDA Census of Agriculture)**: USDA NASS QuickStats county-level data from the 2017 and 2022 Census of Agriculture — farmland/cropland/pastureland/woodland acreage and ownership tenure, harvested acreage for corn/soybeans/winter wheat, conservation tillage and cover crop acreage, and producer demographic/decision-making characteristics. **Unlike supplements 1–8, this is a county-level dataset, not a field-level one** — `join_regrow_supplement_9.py` / `join_csb_supplement_9.py` do not attach these values to individual `field_id`/`CSBID` records. Instead, each script reads the corresponding `supplement_1` table to get the `county_name`/`state_name` already assigned to each Regrow field or CSB field, builds the distinct, alphabetically-sorted list of `county_state_name` values (`county_name + "_" + state_name`) actually present in that state, and joins the wide Census of Agriculture table onto that county list. `county_state_name` is therefore the matching key to use when joining supplement 9 to any other data block that has a county/state identifier.
+- **Census tract**: TIGER 2023 Cartographic Boundary Files. Fields are matched to their containing census tract by a centroid-in-polygon spatial join (point-in-polygon, faster than full overlay); fields whose centroid falls outside all tract polygons due to boundary precision issues fall back to a nearest-tract join. Adds state/county/tract identifiers and tract land/water area.
+- **Elevation & slope**: USGS 3DEP 1-arc-second elevation, reprojected to the project's equal-area CRS (EPSG:5070) and used to derive slope (degrees) via GDAL's DEM processing. Field-level values are the **zonal mean** elevation/slope under each field's polygon footprint.
+- **Watershed**: USGS 3DHP/NHD hydrologic unit boundaries at three nested levels — subbasin (HUC8), watershed (HUC10), subwatershed (HUC12) — matched to fields via the same centroid-in-polygon approach as the census tract join.
+- **Roads**: TIGER 2023 PRISECROADS (primary + secondary roads). Computes nearest-road distance per field via nearest-neighbor spatial join, with primary roads (MTFCC class S1100) preferred over secondary (S1200) when distances tie.
+- **Neighboring-field land management**: Derived entirely from the host dataset (Regrow or CSB) itself — no external source. Fields sharing a boundary or overlapping with a given field are identified via spatial self-join; tillage/cover-crop values (Regrow only) are averaged across neighbors, and main-crop composition is summarized as an area-weighted share of neighboring acreage across crop groups (corn / soybean / wheat / other). The CSB-side version computes only the crop-composition share, since CSB has no tillage/cover-crop fields to average.
+- **Weather**: PRISM AN Monthly Time Series, 6 variables (precipitation, min/max temperature, mean dew point, min/max vapor pressure deficit), 2014–2025, 800m resolution. Field-level values are extracted as a **point sample at the field centroid** (not a full zonal average) for performance — column names use `_centroid_` to reflect this.
+- **Crop price**: Barchart elevator-level monthly cash prices for corn/soybeans/wheat, and county-level monthly cash prices for corn/soybeans (no county series for wheat). Field-level values are computed via a K-D tree nearest-neighbor search against geocoded elevator/county locations, both as a "nearest with gap-filling from the next-nearest" series and as a distance-weighted average across the `N` nearest locations (own-county is always prioritized first in the county-level search, when available). The single-nearest-elevator series is dropped in a post-processing step (`cut_regrow_crop_prices` / `cut_csb_crop_prices`), keeping only the N-nearest weighted average and the county-level series in the final `_table_reduced` file.
+- **Soil/gSSURGO**: Gridded SSURGO database (USDA NRCS), 30m map-unit (mukey) raster, joined to detailed component/horizon tabular soil data. For each field, the dominant soil component's categorical attributes (`drainagecl`, `cropprodindex`, `resdept_r`) are taken from the single most areally-significant soil component per map unit; continuous physical/chemical properties (`sandtotal_r`, `claytotal_r`, `ph1to1h2o_r`) are depth-weighted to a configurable target depth (`soil_depth_cm`, currently 30cm) and then averaged across all map units intersecting the field, weighted by pixel coverage (i.e., area-weighted); `slopegraddcp` is taken directly as a pre-aggregated mukey-level attribute.
+- **USDA Census of Agriculture**: USDA NASS QuickStats county-level data from the 2017 and 2022 Census of Agriculture — farmland/cropland/pastureland/woodland acreage and ownership tenure, harvested acreage for corn/soybeans/winter wheat, conservation tillage and cover crop acreage, and producer demographic/decision-making characteristics. **Unlike the other supplementary blocks above, this is a county-level dataset, not a field-level one** — `join_regrow_ag_census.py` / `join_csb_ag_census.py` do not attach these values to individual `field_id`/`CSBID` records. Instead, each script reads the corresponding census tract table to get the `county_name`/`state_name` already assigned to each Regrow field or CSB field, builds the distinct, alphabetically-sorted list of `county_state_name` values (`county_name + "_" + state_name`) actually present in that state, and joins the wide Census of Agriculture table onto that county list. `county_state_name` is therefore the matching key to use when joining this block to any other data block that has a county/state identifier.
 
 <br>
 
@@ -718,9 +728,9 @@ The procedure (from `Representative Field Attribute. Supporting Documentation.md
    - **Level 4** (low): `"F"` with size missing, a crop mismatch, and confidence ≤ 75%; or both size and crop answers missing but the farmer has only a single DISES holding (`n_parcels_dises = 1`), making that the only possible candidate by elimination.
 3. **One representative field per farmer**: among all of a farmer's eligible candidates, the highest-likelihood-level field is kept; ties are broken by closest area match, then by largest overlap share.
 
-To get the full sample of representative fields, combine fields across all 4 levels (`RF_level_1_dises` … `RF_level_4_dises`).
+All 4 tiers are collapsed into a single `RF_assignment_dises` column, valued `"Level 1"`…`"Level 4"` (or missing, for fields that were never eligible or weren't the farmer's best candidate). To get the full sample of representative fields, select all rows where `RF_assignment_dises` is not missing.
 
-> **Note on the CSB-side equivalent (`join_csb_dises.py`)**: the same tiered logic applies, but **without a confidence-score dimension**, since CDL/CSB has no per-field confidence analog to Regrow's ML crop confidence. CSB's `RF_level_1` is therefore simply `match_quality_dises == "A"` with no confidence split, and `RF_level_2`/`RF_level_3` collapse the Regrow version's confidence-based sub-branches into their non-confidence conditions only. This is an intentional simplification driven by data availability, not an oversight.
+> **Note on the CSB-side equivalent (`join_csb_dises.py`)**: the same tiered logic applies, but **without a confidence-score dimension**, since CDL/CSB has no per-field confidence analog to Regrow's ML crop confidence. CSB's `RF_assignment_dises == "Level 1"` is therefore simply `match_quality_dises == "A"` with no confidence split, and `"Level 2"`/`"Level 3"` collapse the Regrow version's confidence-based sub-branches into their non-confidence conditions only. This is an intentional simplification driven by data availability, not an oversight.
 
 #### 4.5.5 What are the outcomes of the matching quality procedure?
 
@@ -734,12 +744,12 @@ To get the full sample of representative fields, combine fields across all 4 lev
 | `F` | |
 | **Total matched** | |
 
-| Representative field level | Count |
+| `RF_assignment_dises` | Count |
 |---|---|
-| `RF_level_1_dises` | |
-| `RF_level_2_dises` | |
-| `RF_level_3_dises` | |
-| `RF_level_4_dises` | |
+| `Level 1` | |
+| `Level 2` | |
+| `Level 3` | |
+| `Level 4` | |
 | **Total representative fields** | |
 
 #### 4.5.6 How to generate Regrow sub-samples with available DISES data
@@ -752,15 +762,15 @@ To get the full sample of representative fields, combine fields across all 4 lev
 
 #### 4.5.7 How to extract DISES-related variables
 
-Every column originating from or derived from the DISES dataset carries the suffix `_dises` (e.g. `field_crop_23_dises`, `match_quality_dises`, `RF_level_1_dises`).
+Every column originating from or derived from the DISES dataset carries the suffix `_dises` (e.g. `field_crop_23_dises`, `match_quality_dises`, `RF_assignment_dises`).
 
 #### 4.5.8 Merging Regrow with each supplementary dataset
 
-Each supplementary join is implemented as its own script and produces its own standalone output table (joined to the host dataset only by `field_id`, not chained to each other) — see [4.4](#44-supplementary-farmland-characteristics) for the per-supplement methodology, and [Section 6](#6-explanation-of-individual-scripts) for full script-level detail. The one exception is **supplement 9**, which is keyed on `county_state_name` rather than `field_id` — see [4.4](#44-supplementary-farmland-characteristics) for how it's built and matched.
+Each supplementary join is implemented as its own script and produces its own standalone output table (joined to the host dataset only by `field_id`, not chained to each other) — see [4.4](#44-supplementary-farmland-characteristics) for the per-supplement methodology, and [Section 6](#6-explanation-of-individual-scripts) for full script-level detail. The one exception is **the USDA Census of Agriculture block** (`join_regrow_ag_census`), which is keyed on `county_state_name` rather than `field_id` — see [4.4](#44-supplementary-farmland-characteristics) for how it's built and matched.
 
 #### 4.5.9 Output dataset structure and integration
 
-Output files generally follow the pattern `{state}_regrow_<block>_table.parquet` — one file per state per data block, e.g. `{state}_regrow_table.parquet` for the base table, `{state}_regrow_dises_table.parquet` for the DISES join, and `{state}_regrow_supplement_{n}_table.parquet` for supplement `n`.
+Output files generally follow the pattern `{state}_regrow_<block>_table.parquet` — one file per state per data block, e.g. `{state}_regrow_table.parquet` for the base table, `{state}_regrow_dises_table.parquet` for the DISES join, and `{state}_regrow_census_tract_table.parquet` / `{state}_regrow_ag_census_table.parquet` for the supplementary blocks.
 
 To combine multiple blocks into one field-level dataset, merge them on `field_id` — every block's table has one row per Regrow field (fields with no DISES or supplement match still have a row, just with missing values), so `field_id` is always the key to use when joining any two of these tables together.
 
@@ -810,12 +820,12 @@ Same purpose and tiering as [4.5.4](#454-what-is-a-representative-field-attribut
 | `F` | |
 | **Total matched** | |
 
-| Representative field level | Count |
+| `RF_assignment_dises` | Count |
 |---|---|
-| `RF_level_1_dises` | |
-| `RF_level_2_dises` | |
-| `RF_level_3_dises` | |
-| `RF_level_4_dises` | |
+| `Level 1` | |
+| `Level 2` | |
+| `Level 3` | |
+| `Level 4` | |
 | **Total representative fields** | |
 
 #### 4.6.6 How to generate CSB sub-samples with available DISES data
@@ -828,11 +838,11 @@ Same `_dises` suffix convention as the Regrow branch.
 
 #### 4.6.8 Merging CSB with each supplementary dataset
 
-Structurally near-identical to the Regrow-side scripts (same spatial-join methodology per supplement), with `CSBID` substituted for `field_id` and an added outer loop over `CSB_years`. Note that **Supplement 9** is structurally different from the rest: it's keyed on `county_state_name` rather than `CSBID` — see [4.4](#44-supplementary-farmland-characteristics).
+Structurally near-identical to the Regrow-side scripts (same spatial-join methodology per supplement), with `CSBID` substituted for `field_id` and an added outer loop over `CSB_years`. Note that **the USDA Census of Agriculture block** (`join_csb_ag_census`) is structurally different from the rest: it's keyed on `county_state_name` rather than `CSBID` — see [4.4](#44-supplementary-farmland-characteristics).
 
 #### 4.6.9 Output dataset structure and integration
 
-Output files generally follow the pattern `{state}_CSB{years}_<block>_table.parquet` — e.g. `{state}_CSB{years}_table.parquet` for the base table, `{state}_CSB{years}_dises_table.parquet` for the DISES join, and `{state}_CSB{years}_supplement_{n}_table.parquet` for supplement `n`.
+Output files generally follow the pattern `{state}_CSB{years}_<block>_table.parquet` — e.g. `{state}_CSB{years}_table.parquet` for the base table, `{state}_CSB{years}_dises_table.parquet` for the DISES join, and `{state}_CSB{years}_census_tract_table.parquet` / `{state}_CSB{years}_ag_census_table.parquet` for the supplementary blocks.
 
 To combine multiple blocks into one field-level dataset, merge them on `CSBID` — every block's table has one row per CSB field (fields with no DISES or supplement match still have a row, just with missing values), so `CSBID` is always the key to use when joining any two of these tables together.
 
@@ -893,13 +903,13 @@ This section catalogs every active script in `scripts/` (excluding `scripts/arch
 
 **`clip_elevation_slope.py`**: Clips the national reprojected elevation and slope rasters to each state boundary, with an outward buffer (`state_buffer_margin` in config) to retain context just past the state line.
 
-**`clip_gSSURGO_mukey_rasters.py`**: Clips the national gSSURGO 30m mukey raster to each state boundary (same buffer parameter) to produce the per-state soil map-unit grids used later in supplement 8.
+**`clip_gSSURGO_mukey_rasters.py`**: Clips the national gSSURGO 30m mukey raster to each state boundary (same buffer parameter) to produce the per-state soil map-unit grids used later in the soil composition join.
 
 **`clip_cdl_rasters.py`**: Clips national CDL rasters per state per year (same buffer parameter), producing the `{state}_{year}_30m_cdls_clipped.tif` files used for Regrow's CDL validation. Missing-file years are skipped silently (by design, since not every year may be downloaded yet); any other processing error is re-raised rather than silently skipped.
 
-**`clean_crop_prices.py`**: Cleans raw Barchart Excel elevator/county price spreadsheets into monthly average price series and geocodes elevator/county-index locations (via OpenStreetMap Nominatim, with a manually-curated correction file for known bad addresses) for use in supplement 7's nearest-neighbor price join. Drops price series (elevators or county indices) with fewer than a configured minimum number of non-null monthly observations.
+**`clean_crop_prices.py`**: Cleans raw Barchart Excel elevator/county price spreadsheets into monthly average price series and geocodes elevator/county-index locations (via OpenStreetMap Nominatim, with a manually-curated correction file for known bad addresses) for use in the crop price supplement's nearest-neighbor price join. Drops price series (elevators or county indices) with fewer than a configured minimum number of non-null monthly observations.
 
-**`clip_reproject_weather_rasters.py`**: Reprojects and clips monthly PRISM rasters to each state boundary, producing per-state/variable/month clipped GeoTIFFs used by supplement 6.
+**`clip_reproject_weather_rasters.py`**: Reprojects and clips monthly PRISM rasters to each state boundary, producing per-state/variable/month clipped GeoTIFFs used by the weather supplement.
 
 **`clip_csb_shape.py`**: Extracts each state's portion of the national CSB geodatabase via an attribute filter on `STATEFIPS`, saving one parquet per state per CSB year-window.
 
@@ -941,23 +951,23 @@ This section catalogs every active script in `scripts/` (excluding `scripts/arch
 
 ### 6.7 Supplementary data joins (Regrow side)
 
-**`rasterize_regrow_to_gSSURGO_grid.py`**: Same rasterization methodology as the CDL grid script, but burning field IDs onto the gSSURGO mukey raster's grid instead — a prerequisite for supplement 8's soil aggregation.
+**`rasterize_regrow_to_gSSURGO_grid.py`**: Same rasterization methodology as the CDL grid script, but burning field IDs onto the gSSURGO mukey raster's grid instead — a prerequisite for the soil composition aggregation.
 
-**`join_regrow_supplement_1.py`** (census tract), **`join_regrow_supplement_2.py`** (elevation/slope), **`join_regrow_supplement_3.py`** (watershed), **`join_regrow_supplement_4.py`** (road distance), **`join_regrow_supplement_5.py`** (neighboring-field land management), **`join_regrow_supplement_6.py`** (weather), **`join_regrow_supplement_7.py`** + **`cut_regrow_supplement_7.py`** (crop price), **`join_regrow_supplement_8.py`** (soil, requires `rasterize_regrow_to_gSSURGO_grid.py` above) — see the per-supplement methodology table in [4.4](#44-supplementary-farmland-characteristics).
+**`join_regrow_census_tract.py`**, **`join_regrow_elevation_slope.py`**, **`join_regrow_watershed.py`**, **`join_regrow_nearest_roads.py`**, **`join_regrow_neighbor_field_mgmt.py`**, **`join_regrow_weather.py`**, **`join_regrow_crop_prices.py`** + **`cut_regrow_crop_prices.py`**, **`join_regrow_soil_composition.py`** (requires `rasterize_regrow_to_gSSURGO_grid.py` above) — see the per-supplement methodology table in [4.4](#44-supplementary-farmland-characteristics).
 
-**`join_regrow_supplement_9.py`** (USDA Census of Agriculture, county-level — keyed on `county_state_name`, not `field_id`; uses `{state}_regrow_supplement_1_table.parquet` to get each county/state pair) — see [4.4](#44-supplementary-farmland-characteristics).
+**`join_regrow_ag_census.py`** (USDA Census of Agriculture, county-level — keyed on `county_state_name`, not `field_id`; uses `{state}_regrow_census_tract_table.parquet` to get each county/state pair) — see [4.4](#44-supplementary-farmland-characteristics).
 
 ### 6.8 Supplementary data joins (CSB side)
 
-**`join_csb_supplement_1.py`** through **`join_csb_supplement_8.py`**, **`cut_csb_supplement_7.py`**, **`rasterize_CSB_to_gSSURGO_grid.py`** — structurally mirror their Regrow-side counterparts with `CSBID`/`CSBACRES` substituted for `field_id`/`area_acre` and an added outer loop over `CSB_years`. The one methodological difference (supplement 5 lacking a tillage/cover-crop component, since CSB has none) is documented in [4.6.8](#468-merging-csb-with-each-supplementary-dataset).
+**`join_csb_census_tract.py`**, **`join_csb_elevation_slope.py`**, **`join_csb_watershed.py`**, **`join_csb_nearest_roads.py`**, **`join_csb_neighbor_field_mgmt.py`**, **`join_csb_weather.py`**, **`join_csb_crop_prices.py`** + **`cut_csb_crop_prices.py`**, **`join_csb_soil_composition.py`**, **`rasterize_CSB_to_gSSURGO_grid.py`** — structurally mirror their Regrow-side counterparts with `CSBID`/`CSBACRES` substituted for `field_id`/`area_acre` and an added outer loop over `CSB_years`. The one methodological difference (the neighbor-field-management join lacking a tillage/cover-crop component, since CSB has none) is documented in [4.6.8](#468-merging-csb-with-each-supplementary-dataset).
 
-**`join_csb_supplement_9.py`**: CSB-side mirror of `join_regrow_supplement_9.py` — same county-level methodology, keyed on `county_state_name`, using `{state}_CSB{year}_supplement_1_table.parquet` to get each county/state pair.
+**`join_csb_ag_census.py`**: CSB-side mirror of `join_regrow_ag_census.py` — same county-level methodology, keyed on `county_state_name`, using `{state}_CSB{year}_census_tract_table.parquet` to get each county/state pair.
 
 ---
 
 ## 7. Maumee Watershed Filtering
 
-The Maumee River watershed is the largest in the Great Lakes region, consisting of **seven subbasins** that drain into the Western Basin of Lake Erie. To filter fields to the Maumee watershed, use the `subbasin_id` variable from the supplement 3 data file together with the HUC-8 codes for those subbasins.
+The Maumee River watershed is the largest in the Great Lakes region, consisting of **seven subbasins** that drain into the Western Basin of Lake Erie. To filter fields to the Maumee watershed, use the `subbasin_id` variable from the watershed supplement data file (`{state}_regrow_watershed_table.parquet` / `{state}_CSB{years}_watershed_table.parquet`) together with the HUC-8 codes for those subbasins.
 
 <br>
 

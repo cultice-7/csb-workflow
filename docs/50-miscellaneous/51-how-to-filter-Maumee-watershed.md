@@ -1,6 +1,6 @@
 # Maumee Watershed Filtering
 
-The Maumee River watershed is the largest in the Great Lakes region, consisting of **seven subbasins** that drain into the Western Basin of Lake Erie. To filter fields to the Maumee watershed, use the `subbasin_id` variable from the supplement 3 data file together with the HUC-8 codes for those subbasins.
+The Maumee River watershed is the largest in the Great Lakes region, consisting of **seven subbasins** that drain into the Western Basin of Lake Erie. To filter fields to the Maumee watershed, use the `subbasin_id` variable from the watershed supplement data file (`{state}_regrow_watershed_table.parquet` / `{state}_CSB{years}_watershed_table.parquet`) together with the HUC-8 codes for those subbasins.
 
 <br>
 

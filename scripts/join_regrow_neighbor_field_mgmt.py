@@ -4,6 +4,7 @@ import pandas as pd
 from shapely.ops import nearest_points
 from shapely.geometry import box
 import os
+import re
 import numpy as np
 
 # Import parameters from Snakemake
@@ -37,9 +38,11 @@ for state in states:
     print(f"Adding activities on neighboring fields for {state}...")
     
     # Keep land management activities from regrow_shape_table
+    # Bare "{activity}_{2-digit year}_{cycle}" columns only (e.g. "crop_23_1"),
+    # excluding their "_start"/"_end"/"_conf" companions (e.g. "crop_start_23_1")
     exact_cols = ["field_id", "area_acre", "geometry"]
-    prefix_cols = ("PHtill_1", "PHtill_2", "PPtill_1", "PPtill_2", "cover_1", "cover_2", "crop_1", "crop_2")
-    columns_to_keep = [c for c in regrow_shape_table.columns if c in exact_cols or c.startswith(prefix_cols)]
+    activity_col_pattern = re.compile(r'^(PHtill|PPtill|cover|crop)_\d{2}_\d+$')
+    columns_to_keep = [c for c in regrow_shape_table.columns if c in exact_cols or activity_col_pattern.match(c)]
     regrow_shape_table = regrow_shape_table[columns_to_keep]
 
     # Identify neighboring fields

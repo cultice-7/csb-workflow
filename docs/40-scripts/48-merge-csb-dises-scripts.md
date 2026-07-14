@@ -19,11 +19,11 @@ These combine into `match_quality_dises`: `"A"` (both match), `"B_crop"` (crop o
 
 Run once per year, on all states' results combined for that year, after the per-state loop finishes. Candidates are first restricted to CSB fields that are DISES-assigned, belong to a farmer who completed the survey, and have `overlap_area_share_dises > 50%`. Each candidate is then classified into one of 4 likelihood tiers based on `match_quality_dises` alone — CSB has **no crop-confidence dimension**, since CDL has no per-field ML confidence analog to Regrow's, so the tiers are coarser than the Regrow side's:
 
-- `RF_level_1_dises`: `match_quality_dises == "A"`.
-- `RF_level_2_dises`: `"B_area"` with the DISES crop answer missing, or `"B_crop"` with the DISES size answer missing.
-- `RF_level_3_dises`: `"B_area"` with a crop mismatch.
-- `RF_level_4_dises`: `"F"` with size missing and a crop mismatch, or both size and crop missing with only a single DISES holding (`n_parcels_dises == 1`, an elimination case).
+- `"Level 1"`: `match_quality_dises == "A"`.
+- `"Level 2"`: `"B_area"` with the DISES crop answer missing, or `"B_crop"` with the DISES size answer missing.
+- `"Level 3"`: `"B_area"` with a crop mismatch.
+- `"Level 4"`: `"F"` with size missing and a crop mismatch, or both size and crop missing with only a single DISES holding (`n_parcels_dises == 1`, an elimination case).
 
-Within each farmer (`comp_id_dises`), only the single best candidate is kept — highest tier first, ties broken by closest area match, then by largest overlap share — and merged back onto each state's output table as `RF_level_1_dises`…`RF_level_4_dises`.
+The 4 tiers are collapsed into a single `RF_assignment_dises` column via `np.select` (first matching condition wins, so `"Level 1"` takes priority if a row somehow qualifies for more than one tier), valued `"Level 1"`…`"Level 4"` or missing. Within each farmer (`comp_id_dises`), only the single best candidate is kept — highest tier first, ties broken by closest area match, then by largest overlap share — and merged back onto each state's output table as `RF_assignment_dises`.
 
 See [Merging CSB with DISES and Supplements](../30-workflow/32-merging-csb-dises-supplements.md) for the underlying methodology and rationale.

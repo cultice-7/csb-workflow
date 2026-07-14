@@ -9,7 +9,7 @@ from pathlib import Path
 # Import parameters from Snakemake
 regrow_input_folder = snakemake.params.regrow_input_dir
 regrow_checks_folder = snakemake.params.regrow_checks_dir
-CDL_input_folder = snakemake.params.CDL_input_dir
+CDL_input_folder = snakemake.params.cdl_input_dir
 regrow_raster_output_folder = snakemake.params.regrow_raster_output_dir
 states = snakemake.params.states
 rasterization_year = snakemake.params.rasterization_year

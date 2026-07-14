@@ -9,6 +9,18 @@ states = snakemake.params.states
 CSB_years = snakemake.params.CSB_years
 
 
+def clean_ag_census_column_name(name):
+    # Drop bracket characters, keeping the words inside as-is
+    name = name.replace('(', '').replace(')', '')
+
+    # Normalize remaining separators
+    name = name.replace(', ', '_')
+    name = name.replace(': ', '_ ')
+    name = name.replace(' - ', '_')
+
+    return name
+
+
 def add_county_state_name(df, state):
     # Title-case all string columns (raw USDA NASS data is upper case)
     str_cols = df.select_dtypes(include=['object', 'string']).columns
@@ -313,7 +325,9 @@ for year in CSB_years:
                                                            columns=['Year', 'Data Item'],
                                                            values='Value')
 
-        census_county_data_wide.columns = [f'{var}_{yr}' for yr, var in census_county_data_wide.columns]
+        census_county_data_wide.columns = [
+            clean_ag_census_column_name(f'{var}_{yr}') for yr, var in census_county_data_wide.columns
+        ]
 
         # Build the unique, alphabetically-sorted list of counties present among this state's CSB fields
         # Supplement_9 is a county-level dataset keyed on county_state_name
@@ -322,9 +336,8 @@ for year in CSB_years:
 
         # Drop counties belonging to a different state (can happen when a border field's nearest-tract
         # fallback in supplement_1 matches a neighboring state's tract instead of its own state's)
-        counties = CSB_supplement_1[['county_name', 'state_name']].drop_duplicates()
+        counties = CSB_supplement_1[['county_name', 'state_name', 'county_state_name']].drop_duplicates()
         counties = counties[counties['state_name'] == state]
-        counties['county_state_name'] = counties['county_name'] + '_' + counties['state_name']
         counties = counties.sort_values('county_state_name').reset_index(drop=True)
 
         # Merge county-level census data onto the sorted county list

@@ -38,7 +38,7 @@ os.makedirs(Path(regrow_validation_output_folder), exist_ok = True)
 
 for state in states:
 
-    regrow_cdl_input_path = os.path.join(regrow_validation_input_folder, f"{state}_regrow_cdl_validation.parquet")
+    regrow_cdl_input_path = os.path.join(regrow_validation_input_folder, f"{state}_regrow_cdl_validation_table.parquet")
     regrow_table_input_path = os.path.join(regrow_input_folder, f"{state}_regrow_table.parquet")
     output_path_xlsx = os.path.join(regrow_validation_output_folder, f"{state}_regrow_cdl_summary_by_crop_category.xlsx")
     

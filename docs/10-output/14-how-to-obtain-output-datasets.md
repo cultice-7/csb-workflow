@@ -26,10 +26,10 @@ Snakemake will automatically build all upstream dependencies of whatever rule yo
 snakemake <rule_name> --cores <N>
 ```
 
-For example, to merge Regrow with supplement 1 to get the `{state}_regrow_supplement_1_table` output file:
+For example, to merge Regrow with the census tract data to get the `{state}_regrow_census_tract_table` output file:
 
 ```bash
-snakemake join_regrow_supplement_1 --cores 1
+snakemake join_regrow_census_tract --cores 1
 ```
 
 ## Recommended execution chains
@@ -61,15 +61,20 @@ clean_regrow_table
 join_regrow_shape_table
 check_regrow_shape_table
 ```
-(`rasterize_regrow_to_gSSURGO_grid` also belongs in this chain if you intend to run supplement 8.)
+(`rasterize_regrow_to_gSSURGO_grid` also belongs in this chain if you intend to run the soil composition join.)
 
 **D. Regrow + DISES + supplementary joins:**
 ```
 join_regrow_dises
-join_regrow_supplement_1 … join_regrow_supplement_6
-join_regrow_supplement_7 → cut_regrow_supplement_7
-join_regrow_supplement_8  (requires rasterize_regrow_to_gSSURGO_grid first)
-join_regrow_supplement_9  (requires join_regrow_supplement_1 first)
+join_regrow_census_tract
+join_regrow_elevation_slope
+join_regrow_watershed
+join_regrow_nearest_roads
+join_regrow_neighbor_field_mgmt
+join_regrow_weather
+join_regrow_crop_prices → cut_regrow_crop_prices
+join_regrow_soil_composition  (requires rasterize_regrow_to_gSSURGO_grid first)
+join_regrow_ag_census  (requires join_regrow_census_tract first)
 ```
 
 **E. CSB data preparation:**
@@ -78,16 +83,21 @@ download_csb
 clip_csb_shape
 split_csb_shape_table
 check_csb_shape_table
-rasterize_CSB_to_gSSURGO_grid   (only needed for supplement 8)
+rasterize_CSB_to_gSSURGO_grid   (only needed for the soil composition join)
 ```
 
 **F. CSB + DISES + supplementary joins:**
 ```
 join_csb_dises
-join_csb_supplement_1 … join_csb_supplement_6
-join_csb_supplement_7 → cut_csb_supplement_7
-join_csb_supplement_8
-join_csb_supplement_9  (requires join_csb_supplement_1 first)
+join_csb_census_tract
+join_csb_elevation_slope
+join_csb_watershed
+join_csb_nearest_roads
+join_csb_neighbor_field_mgmt
+join_csb_weather
+join_csb_crop_prices → cut_csb_crop_prices
+join_csb_soil_composition
+join_csb_ag_census  (requires join_csb_census_tract first)
 ```
 
 **G. Regrow validation against CDL (optional, independent of the merge chains above):**

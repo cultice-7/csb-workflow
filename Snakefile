@@ -35,7 +35,9 @@ rule all:
         expand("data/edited/Regrow/{state}_regrow_crop_prices_table_reduced.parquet", state=STATES),
         # CSB supplement tables
         expand("data/edited/CSB/{state}_CSB{years}_{supp}_table.parquet", state=STATES, years=CSB_YEARS, supp=['census_tract', 'elevation_slope', 'watershed', 'nearest_roads', 'neighbor_field_mgmt', 'weather', 'soil_composition', 'ag_census']),
-        expand("data/edited/CSB/{state}_CSB{years}_crop_prices_table_reduced.parquet", state=STATES, years=CSB_YEARS)
+        expand("data/edited/CSB/{state}_CSB{years}_crop_prices_table_reduced.parquet", state=STATES, years=CSB_YEARS),
+        # Regrow validation with CDL
+        expand("data/edited/Regrow/CDL validation/{state}_regrow_cdl_validation_table.parquet", state=STATES)
 
 
 # =============================================================================
@@ -413,8 +415,8 @@ rule clip_cdl_rasters:
         clipped_cdl_rasters = expand("data/edited/CDL/{state}_{year}_30m_cdls_clipped.tif", state=STATES, year=YEARS)
     params:
         state_bound_dir = config["state_bound"]["processed_data_dir"],
-        CDL_input_dir = config["cdl"]["processed_data_dir"],
-        CDL_output_dir = config["cdl"]["final_dir"],
+        cdl_input_dir = config["cdl"]["processed_data_dir"],
+        cdl_output_dir = config["cdl"]["final_dir"],
         states = STATES,
         years = YEARS,
         target_CRS = config["global_vars"]["target_CRS"],
@@ -434,7 +436,7 @@ rule rasterize_regrow_to_CDL_grid:
     params:
         regrow_input_dir = config["regrow"]["final_dir"],
         regrow_checks_dir = config["regrow"]["checks_dir"],
-        CDL_input_dir =  config["cdl"]["final_dir"],
+        cdl_input_dir =  config["cdl"]["final_dir"],
         regrow_raster_output_dir = config["regrow"]["CDL_validation_dir"],
         states = STATES,
         rasterization_year = config["cdl"]["rasterization_year"],
@@ -449,13 +451,13 @@ rule join_regrow_cdl:
         regrow_table = expand("data/edited/Regrow/{state}_regrow_table.parquet", state=STATES),
         clipped_cdl_rasters = expand("data/edited/CDL/{state}_{year}_30m_cdls_clipped.tif", state=STATES, year=YEARS)
     output:
-        joined_regrow_CDL = expand("data/edited/Regrow/CDL validation/{state}_regrow_cdl_validation.parquet", state=STATES)
+        joined_regrow_CDL = expand("data/edited/Regrow/CDL validation/{state}_regrow_cdl_validation_table.parquet", state=STATES)
     params:
         regrow_input_dir = config["regrow"]["final_dir"],
         regrow_raster_input_dir = config["regrow"]["CDL_validation_dir"],
         regrow_checks_dir = config["regrow"]["checks_dir"],
         regrow_validation_dir = config["regrow"]["CDL_validation_dir"],
-        CDL_input_dir =  config["cdl"]["final_dir"],
+        cdl_input_dir =  config["cdl"]["final_dir"],
         states = STATES,
         years = YEARS
     script:
@@ -464,7 +466,7 @@ rule join_regrow_cdl:
 # CDL validation for Regrow
 rule validate_regrow_crop_with_cdl:
     input: 
-        joined_regrow_CDL = expand("data/edited/Regrow/CDL validation/{state}_regrow_cdl_validation.parquet", state=STATES),
+        joined_regrow_CDL = expand("data/edited/Regrow/CDL validation/{state}_regrow_cdl_validation_table.parquet", state=STATES),
         regrow_table = expand("data/edited/Regrow/{state}_regrow_table.parquet", state=STATES)
     output:
         summary_regrow_cdl_by_category = expand("data/edited/Regrow/CDL validation/{state}_regrow_cdl_summary_by_crop_category.xlsx", state=STATES)
