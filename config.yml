@@ -47,9 +47,11 @@ csb_DISES:
 regrow_supplement:
   final_dir: "data/edited/Regrow"
   rasterization_to_gSSURGO_dir: "data/edited/Regrow/Rasterization to gSSURGO grid"
+  long_format_dir: "data/edited/Regrow/Long dataset"
 
 csb_supplement:
   final_dir: "data/edited/CSB"
+  long_format_dir: "data/edited/CSB/Long dataset"
   rasterization_to_gSSURGO_dir: "data/edited/CSB/Rasterization to gSSURGO grid"
 
 cdl:

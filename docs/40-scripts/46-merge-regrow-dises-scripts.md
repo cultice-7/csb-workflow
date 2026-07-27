@@ -26,4 +26,4 @@ Run once on all states' results combined, after the per-state loop finishes. Can
 
 The 4 tiers are collapsed into a single `RF_assignment_dises` column via `np.select` (first matching condition wins, so `"Level 1"` takes priority if a row somehow qualifies for more than one tier), valued `"Level 1"`…`"Level 4"` or missing. Within each farmer (`comp_id_dises`), only the single best candidate is kept — highest tier first, ties broken by closest area match, then by largest overlap share — and merged back onto each state's output table as `RF_assignment_dises`.
 
-See [Merging Regrow with DISES and Supplements](../30-workflow/31-merging-regrow-dises-supplements.md) for the underlying methodology and rationale.
+See [Merging Regrow with DISES and Supplements](../30-workflow/33-merging-regrow-dises-supplements.md) for the underlying methodology and rationale.

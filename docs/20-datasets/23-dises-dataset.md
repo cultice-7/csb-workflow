@@ -8,7 +8,15 @@ DISES is currently the project's only source of direct farmer characteristics. A
 
 ## Which area is covered by DISES?
 
-DISES survey responses come specifically from the Maumee watershed / western Lake Erie Basin portion of Indiana, Michigan, and Ohio (`states_DISES` in `config.yml`) — not the entirety of those three states. This is a sub-region of the broader 7-state Regrow/CSB study area.
+DISES survey responses come specifically from the Western Lake Erie Basin portion of Indiana, Michigan, and Ohio (`states_DISES` in `config.yml`) — not the entirety of those three states. This is a sub-region of the broader 7-state Regrow/CSB study area.
+
+The random sample of farmers surveyed by DISES was drawn from the following counties:
+
+| State | Counties |
+|---|---|
+| Ohio | Allen, Auglaize, Defiance, Fulton, Hancock, Hardin, Henry, Lucas, Paulding, Putnam, Seneca, Shelby, Van Wert, Williams, Wood, Wyandot |
+| Indiana | Adams, Allen, DeKalb, Noble, Steuben, Wells, Whitley |
+| Michigan | Branch, Hillsdale, Lenawee |
 
 ## What is a "DISES parcel"?
 
@@ -16,11 +24,11 @@ A DISES parcel is a tax-record-derived land unit. During dataset processing, all
 
 ## What is the difference between a "Regrow field" and a "DISES parcel"?
 
-A Regrow field is the output of a remote-sensing field-delineation *algorithm* based on observed crop-choice sequences; a DISES parcel is based on **tax/ownership records**, collected for a separate project with no direct association to this one. For the same physical land, the two may disagree in: **shape** (the polygon outline itself), **extent** (how much area is covered — a DISES holding may be larger or smaller than the corresponding Regrow fields), and **count** (one farmer's DISES holding may correspond to one Regrow field, several Regrow fields, or only partially overlap any Regrow field at all). This is exactly why the merging procedure in [Merging Regrow with DISES and Supplements](../30-workflow/31-merging-regrow-dises-supplements.md) needs explicit match-quality scoring rather than assuming a clean 1:1 correspondence. Because DISES was built independently, users should expect — and the match-quality variables are designed to surface — inconsistencies between the two datasets.
+A Regrow field is the output of a remote-sensing field-delineation *algorithm* based on observed crop-choice sequences; a DISES parcel is based on **tax/ownership records**, collected for a separate project with no direct association to this one. For the same physical land, the two may disagree in: **shape** (the polygon outline itself), **extent** (how much area is covered — a DISES holding may be larger or smaller than the corresponding Regrow fields), and **count** (one farmer's DISES holding may correspond to one Regrow field, several Regrow fields, or only partially overlap any Regrow field at all). This is exactly why the merging procedure in [Merging Regrow with DISES and Supplements](../30-workflow/33-merging-regrow-dises-supplements.md) needs explicit match-quality scoring rather than assuming a clean 1:1 correspondence. Because DISES was built independently, users should expect — and the match-quality variables are designed to surface — inconsistencies between the two datasets.
 
 ## What are the key attributes of the DISES dataset?
 
-`[TODO — ADD INFORMATION]`
+Among the wide range of questions in the DISES survey, we select a subset that captures the most important characteristics about farmers — variables that can be used as either predictors or target variables, depending on the modeling design. The list of selected variables is available in the DISES Codebook (see [below](#where-can-i-find-more-information-about-dises-dataset-attributes)), each variable identified so far is marked `Yes` in the `Key Farmer Characteristics` column.
 
 ## Where can I find more information about DISES dataset attributes?
 

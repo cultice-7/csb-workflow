@@ -29,7 +29,7 @@ Same `area_match_dises` / `crop_match_dises` → `match_quality_dises` (`A`/`B_c
 
 ## What is a representative-field attribute on the CSB side?
 
-Same purpose and tiering as [the Regrow side](31-merging-regrow-dises-supplements.md#what-is-a-representative-field-attribute-why-do-we-need-it), implemented in `join_csb_dises.py`'s `assign_representative_field()`. As noted above, the CSB version has no crop-confidence dimension (CDL has no per-field ML confidence score), so its tiers are coarser:
+Same purpose and tiering as [the Regrow side](33-merging-regrow-dises-supplements.md#what-is-a-representative-field-attribute-why-do-we-need-it), implemented in `join_csb_dises.py`'s `assign_representative_field()`. As noted above, the CSB version has no crop-confidence dimension (CDL has no per-field ML confidence score), so its tiers are coarser:
 
 - **Level 1**: `match_quality_dises == "A"`.
 - **Level 2**: `"B_area"` with DISES crop answer missing, or `"B_crop"` with DISES size answer missing.
@@ -58,7 +58,7 @@ Same purpose and tiering as [the Regrow side](31-merging-regrow-dises-supplement
 
 ## How to generate CSB sub-samples with available DISES data
 
-Same filter logic as [the Regrow side](31-merging-regrow-dises-supplements.md#how-to-generate-regrow-sub-samples-with-available-dises-data), substituting `CSBID` for `field_id`.
+Same filter logic as [the Regrow side](33-merging-regrow-dises-supplements.md#how-to-generate-regrow-sub-samples-with-available-dises-data), substituting `CSBID` for `field_id`.
 
 ## How to extract DISES-related variables
 

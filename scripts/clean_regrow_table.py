@@ -265,9 +265,25 @@ for regrow_cleaned_table_path in regrow_cleaned_table_paths:
     
     missing_cols = set(all_cols) - set(regrow_cleaned_table.columns)
     
-    # Add missing columns with NaN
+    # Add missing columns with a dtype matching what the column would have if it were present:
+    # bare "{activity}_{year}_{cycle}" code columns -> nullable Int16
+    # "{activity}_conf_{year}_{cycle}" -> float64
+    # "{activity}_start/end_{year}_{cycle}" -> datetime64
+    activity_names = ("PHtill", "PPtill", "cover", "crop")
     for col in missing_cols:
-        regrow_cleaned_table[col] = np.nan
+        parts = col.split("_")
+        if len(parts) == 3 and parts[0] in activity_names and len(parts[1]) == 2:
+            # e.g. "PHtill_19_2"
+            regrow_cleaned_table[col] = pd.Series(pd.NA, index=regrow_cleaned_table.index, dtype="Int16")
+        elif len(parts) == 4 and parts[0] in activity_names and parts[1] == "conf" and len(parts[2]) == 2:
+            # e.g. "PHtill_conf_19_2"
+            regrow_cleaned_table[col] = np.nan
+        elif len(parts) == 4 and parts[0] in activity_names and parts[1] in ("start", "end") and len(parts[2]) == 2:
+            # e.g. "PHtill_start_19_2" / "PHtill_end_19_2"
+            regrow_cleaned_table[col] = pd.Series(pd.NaT, index=regrow_cleaned_table.index, dtype="datetime64[ns]")
+        else:
+            # Fallback for any unexpected column name
+            regrow_cleaned_table[col] = np.nan
     
     # Reorder columns
     regrow_cleaned_table = regrow_cleaned_table[all_cols]

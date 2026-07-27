@@ -17,11 +17,20 @@ dises_table_cleaned = dises_table.dropna(how="all", axis=0).reset_index(drop=Tru
 # Delete entries with missing comprehensive ID
 dises_table_cleaned = dises_table_cleaned[dises_table_cleaned['Comprehensive_ID'].notna()].reset_index(drop=True)
 
-# Rename column Comprehensive_ID to comp_id, field_crop to field_crop_23, field_tillage to field_till_23, field_CC to field_cover_23  
+# Rename column Comprehensive_ID to comp_id, field_crop to field_crop_23, field_tillage to field_till_23, field_CC to field_cover_23
 dises_table_cleaned.rename(columns={'Comprehensive_ID': 'comp_id',
                          'field_crop': 'field_crop_23',
                          'field_tillage': 'field_till_23',
                          'field_CC': 'field_cover_23'}, inplace = True)
+
+# Combine Education and NR_education into a single "Education" variable
+# Recode Education from its original 7-point scale onto NR_education's 5-point scale
+education_recode_map = {1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 4, 7: 5}
+dises_table_cleaned['Education'] = dises_table_cleaned['Education'].replace(education_recode_map)
+# Fill in from NR_education only where Education is missing; Education's own value prevails when both are present
+dises_table_cleaned['Education'] = dises_table_cleaned['Education'].fillna(dises_table_cleaned['NR_education'])
+# Drop NR_education now that it has been folded into Education, to avoid confusion
+dises_table_cleaned.drop(columns='NR_education', inplace=True)
 
 # Compute farmer types using FI answers from the survey
 # Productivism index

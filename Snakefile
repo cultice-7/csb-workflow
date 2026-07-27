@@ -37,7 +37,11 @@ rule all:
         expand("data/edited/CSB/{state}_CSB{years}_{supp}_table.parquet", state=STATES, years=CSB_YEARS, supp=['census_tract', 'elevation_slope', 'watershed', 'nearest_roads', 'neighbor_field_mgmt', 'weather', 'soil_composition', 'ag_census']),
         expand("data/edited/CSB/{state}_CSB{years}_crop_prices_table_reduced.parquet", state=STATES, years=CSB_YEARS),
         # Regrow validation with CDL
-        expand("data/edited/Regrow/CDL validation/{state}_regrow_cdl_validation_table.parquet", state=STATES)
+        expand("data/edited/Regrow/CDL validation/{state}_regrow_cdl_validation_table.parquet", state=STATES),
+        # Regrow supplement long-format (wide-to-long reshaped) table
+        expand("data/edited/Regrow/Long dataset/{state}_regrow_supplement_long_table.parquet", state=STATES),
+        # CSB supplement long-format (wide-to-long reshaped) table
+        expand("data/edited/CSB/Long dataset/{state}_CSB{years}_supplement_long_table.parquet", state=STATES, years=CSB_YEARS)
 
 
 # =============================================================================
@@ -996,3 +1000,35 @@ rule join_csb_ag_census:
         ag_census_input_dir = config["ag_census"]["raw_data_dir"]
     script:
         "scripts/join_csb_ag_census.py"
+
+#---# Reshape the combined Regrow/CSB field-level table from wide to long format (one row per field per year)
+rule reshape_regrow_wide_to_long:
+    input:
+        regrow_table = expand("data/edited/Regrow/{state}_regrow_table.parquet", state=STATES),
+        regrow_supplement_tables = expand("data/edited/Regrow/{state}_regrow_{supp}_table.parquet", state=STATES, supp=['census_tract', 'elevation_slope', 'watershed', 'nearest_roads', 'neighbor_field_mgmt', 'weather', 'soil_composition']),
+        regrow_crop_prices_table_reduced = expand("data/edited/Regrow/{state}_regrow_crop_prices_table_reduced.parquet", state=STATES)
+    output:
+        regrow_supplement_long_table = expand("data/edited/Regrow/Long dataset/{state}_regrow_supplement_long_table.parquet", state=STATES)
+    params:
+        states = STATES,
+        regrow_input_dir = config["regrow_supplement"]["final_dir"],
+        regrow_output_dir = config["regrow_supplement"]["long_format_dir"],
+        min_year = config["global_vars"]["years"][0],
+        max_year = config["global_vars"]["years"][1]
+    script:
+        "scripts/reshape_regrow_wide_to_long_format.py"
+
+rule reshape_csb_wide_to_long:
+    input:
+        csb_table = expand("data/edited/CSB/{state}_CSB{years}_table.parquet", state=STATES, years=CSB_YEARS),
+        csb_supplement_tables = expand("data/edited/CSB/{state}_CSB{years}_{supp}_table.parquet", state=STATES, years=CSB_YEARS, supp=['census_tract', 'elevation_slope', 'watershed', 'nearest_roads', 'neighbor_field_mgmt', 'weather', 'soil_composition']),
+        csb_crop_prices_table_reduced = expand("data/edited/CSB/{state}_CSB{years}_crop_prices_table_reduced.parquet", state=STATES, years=CSB_YEARS)
+    output:
+        csb_supplement_long_table = expand("data/edited/CSB/Long dataset/{state}_CSB{years}_supplement_long_table.parquet", state=STATES, years=CSB_YEARS)
+    params:
+        states = STATES,
+        CSB_years = CSB_YEARS,
+        CSB_input_dir = config["csb_supplement"]["final_dir"],
+        CSB_output_dir = config["csb_supplement"]["long_format_dir"]
+    script:
+        "scripts/reshape_csb_wide_to_long_format.py"

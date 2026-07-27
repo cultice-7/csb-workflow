@@ -64,3 +64,6 @@ scripts/clean_regrow_cover_crop.py
 scripts/clean_regrow_main_crop.py
 scripts/clean_regrow_tillage.py
 scripts/clean_regrow_shape.py
+
+# Intial README file
+README_v1.md

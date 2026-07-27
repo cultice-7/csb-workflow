@@ -13,7 +13,7 @@ This subfolder is the primary reference for understanding the four datasets that
 - [How does Regrow detect and define tillage classes?](21-regrow-dataset.md#how-does-regrow-detect-and-define-tillage-classes)
 - [How does Regrow detect and define cover crop classes?](21-regrow-dataset.md#how-does-regrow-detect-and-define-cover-crop-classes)
 - [How does Regrow detect and define commodity crops?](21-regrow-dataset.md#how-does-regrow-detect-and-define-commodity-crops)
-- [Transformation of the Regrow commodity crop variable](21-regrow-dataset.md#transformation-of-the-regrow-commodity-crop-variable)
+- [Transformation of the Regrow land management variables](21-regrow-dataset.md#transformation-of-the-regrow-land-management-variables)
 - [How are raw and processed Regrow datasets structured? What is a cultivation cycle?](21-regrow-dataset.md#how-are-raw-and-processed-regrow-datasets-structured-what-is-a-cultivation-cycle)
 - [What is the Regrow confidence score?](21-regrow-dataset.md#what-is-the-regrow-confidence-score)
 - [How is confidence score determined for tillage, cover crop, and main crop?](21-regrow-dataset.md#how-is-confidence-score-determined-for-tillage-cover-crop-and-main-crop)

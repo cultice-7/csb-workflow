@@ -117,9 +117,16 @@ for state in states:
     regrow_cdl = regrow_cdl.loc[:, regrow_cdl.columns.str.contains("field_id|cdl", case=False)]
     
     ### Save output files ###
+    # Convert crop-code columns to nullable Int16 and validity flag columns to plain int16
+    cdl_crop_cols = regrow_cdl.filter(regex="^cdl_crop_").columns
+    regrow_cdl[cdl_crop_cols] = regrow_cdl[cdl_crop_cols].astype("Int16")
+
+    cdl_valid_cols = regrow_cdl.filter(regex="^cdl_valid_").columns
+    regrow_cdl[cdl_valid_cols] = regrow_cdl[cdl_valid_cols].astype("int16")
+
     # Convert all float64 to float32
     float64_cols = regrow_cdl.select_dtypes(include="float64").columns
-    regrow_cdl[float64_cols] = regrow_cdl[float64_cols].astype("float32")  
+    regrow_cdl[float64_cols] = regrow_cdl[float64_cols].astype("float32")
 
     # Save the output of Regrow joined with the CDL dataset
     regrow_cdl.to_parquet(regrow_cdl_output_path, compression="zstd")
